@@ -178,13 +178,6 @@ class GentooUpgrade:
                     cmd += ["--deep"]
                     self.run(cmd)
 
-                    portage_dir = Path("/var/tmp/portage")  # noqa: S108
-                    for item in self.delete_dir_contents(portage_dir):
-                        if item.is_dir():
-                            print(f"[Delete] {item}/")
-                        else:
-                            print(f"[Delete] {item}")
-
                     # Mark the task as done
                     self._set_post_upgrade_task("emerge-depclean", enabled=False)
         finally:

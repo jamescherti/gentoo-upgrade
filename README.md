@@ -76,7 +76,7 @@ gentoo-upgrade --sync --ask
 * **Dependency resolution:** Resolves full dependency trees, processes build-time requirements, and recompiles packages impacted by USE flag modifications. Uses `--keep-going` to bypass failed builds.
 * **Execution flags:** Supports `--ask` for interactive merge review and `--quiet` to suppress verbose output from Portage and `eclean-dist`.
 * **Library consistency:** Runs `emerge @preserved-rebuild` and `revdep-rebuild -v` post-upgrade to handle ABI shifts and broken dynamic links.
-* **Cleanup routines:** Executes `emerge --depclean`, `eclean-dist --deep`, and clears `/var/tmp/portage/`. Note: dependency removal bypasses interactive prompts even if `--ask` was specified.
+* **Cleanup routines:** Executes `emerge --depclean`, and `eclean-dist --deep`. Note: dependency removal bypasses interactive prompts even if `--ask` was specified.
 * **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.gentoo_upgrade.yaml`.
 
 ## License
