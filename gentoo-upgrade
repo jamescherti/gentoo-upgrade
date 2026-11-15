@@ -190,6 +190,12 @@ class GentooUpgrade:
                     self._set_post_upgrade_task("emerge-depclean", enabled=False)
 
             self.run_perl_cleaner()
+
+            # Clear the pending Go task only after its rebuild succeeds.
+            if self._get_post_upgrade_task("dev-lang/go"):
+                self._logger.info("[EMERGE] emerge @golang-rebuild")
+                self.emerge(["@golang-rebuild"])
+                self._set_post_upgrade_task("dev-lang/go", enabled=False)
         finally:
             self._save_cfg()
 
