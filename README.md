@@ -7,9 +7,9 @@
 
 The *[gentoo-upgrade](https://github.com/jamescherti/gentoo-upgrade)* is a command-line tool that updates Gentoo Linux.
 
-It brings routine Gentoo maintenance into one repeatable command. If Portage needs an update, it upgrades `sys-apps/portage` before running `emerge --update --deep --with-bdeps=y --newuse --keep-going @world`. This checks the full dependency tree, includes build-time dependencies, and rebuilds packages affected by USE flag changes.
+It brings routine Gentoo maintenance into one repeatable command. If Portage needs an update, it upgrades `sys-apps/portage` before upgrading all packages. After a successful upgrade, it rebuilds packages that still use older shared libraries.
 
-After a successful upgrade, it runs `emerge @preserved-rebuild` to rebuild packages that still use older shared libraries. Optional cleanup is disabled by default. When `--clean` is specified, the tool runs scheduled cleanup tasks: `revdep-rebuild -v`, `emerge --depclean`, and `eclean-dist --deep`. It records pending work in `~/.cache/gentoo-upgrade.json`, so scheduled cleanup can be performed on a later successful run with `--clean`.
+Optional cleanup is disabled by default. When `--clean` is specified, the tool runs scheduled cleanup tasks: `revdep-rebuild -v`, `emerge --depclean`, and `eclean-dist --deep`. It records pending work in `~/.cache/gentoo-upgrade.json`, so scheduled cleanup can be performed on a later successful run with `--clean`.
 
 ## Requirements
 
