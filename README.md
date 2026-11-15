@@ -9,7 +9,7 @@ The *[gentoo-upgrade](https://github.com/jamescherti/gentoo-upgrade)* is a comma
 
 It brings routine Gentoo maintenance into one repeatable command. If Portage needs an update, it upgrades `sys-apps/portage` before upgrading all packages. After a successful upgrade, it rebuilds packages that still use older shared libraries.
 
-Optional cleanup is disabled by default. When `--clean` is specified, the tool runs scheduled cleanup tasks: `revdep-rebuild -v`, `emerge --depclean`, `eclean-dist --deep`, and `perl-cleaner --all`. It records pending work in `~/.cache/gentoo-upgrade.json`, so scheduled cleanup can be performed on a later successful run with `--clean`.
+Optional cleanup is disabled by default. When `--clean` is specified, the tool runs scheduled cleanup tasks: `revdep-rebuild -v`, `emerge --depclean`, `eclean-dist --deep`, `perl-cleaner --all`, and `emerge @golang-rebuild`. It records pending work in `~/.cache/gentoo-upgrade.json`, so scheduled cleanup can be performed on a later successful run with `--clean`.
 
 ## Requirements
 
@@ -59,25 +59,24 @@ To sync repositories and review Portage's proposed merges, run as root:
 gentoo-upgrade --sync --ask
 ```
 
-To also run scheduled cleanup tasks after a successful upgrade:
+To also run scheduled cleanup tasks, including pending Go rebuilds, after a successful upgrade:
 
 ```sh
 gentoo-upgrade --sync --ask --clean
 ```
 
-|Option         |Behavior                                                                                                                   |
-|---------------|---------------------------------------------------------------------------------------------------------------------------|
-|`--sync`       |Run `emerge --sync` before checking for updates. By default, use the current local repositories.                           |
-|`-a`, `--ask`  |Pass `--ask` to Portage for merges. By default, the script requests no confirmation. This does not prompt for `--depclean`.|
-|`-c`, `--clean`|Run scheduled cleanup tasks after a successful upgrade. Disabled by default.                                               |
-|`-q`, `--quiet`|Reduce Portage output and run `eclean-dist` quietly.                                                                       |
-|`-h`, `--help` |Show command-line help and exit.                                                                                           |
+|Option         |Behavior                                                                                                                       |
+|---------------|-------------------------------------------------------------------------------------------------------------------------------|
+|`--sync`       |Run `emerge --sync` before checking for updates. By default, use the current local repositories.                               |
+|`-a`, `--ask`  |Ask before upgrade and cleanup operations, including depclean and Go rebuilds. By default, the script requests no confirmation.|
+|`-c`, `--clean`|Run scheduled cleanup tasks after a successful upgrade. Disabled by default.                                                   |
+|`-q`, `--quiet`|Reduce Portage output and run `eclean-dist` quietly.                                                                           |
+|`-h`, `--help` |Show command-line help and exit.                                                                                               |
 
 ## How gentoo-upgrade handles updates, rebuilds, and cleanup
 
 ### Step 1: Pre-flight checks
 
-- **Process check:** Detects running `emerge` instances before execution and prior to cleanup phases.
 - **News queue verification:** Checks for unread Gentoo news before sync or upgrade actions. Read pending items with `eselect news read`.
 
 ### Step 2: Upgrade
@@ -85,13 +84,14 @@ gentoo-upgrade --sync --ask --clean
 - **Repository synchronization:** Executes `emerge --sync` when invoked with `--sync`. Defaults to local repository metadata.
 - **Portage self-update:** Upgrades `sys-apps/portage` before processing the rest of `@world`.
 - **Dependency resolution:** Resolves full dependency trees, processes build-time requirements, and recompiles packages impacted by USE flag modifications. Uses `--keep-going` to continue past failed builds.
-- **Execution flags:** Supports `--ask` for interactive merge review and `--quiet` to reduce output from Portage and `eclean-dist`.
+- **Execution flags:** Supports `--ask` for interactive upgrade and cleanup review and `--quiet` to reduce output from Portage and `eclean-dist`.
 
 ### Step 3: Cleanup
 
 - **Library consistency:** Runs `emerge @preserved-rebuild` after a successful upgrade. When `--clean` is specified, it also runs `revdep-rebuild -v` if that task is scheduled.
-- **Cleanup routines:** When `--clean` is specified, runs scheduled `emerge --depclean`, `eclean-dist --deep`, and `perl-cleaner --all` tasks after a successful upgrade. The Perl command runs only when a Perl task is pending. Dependency removal bypasses interactive prompts even if `--ask` was specified.
+- **Cleanup routines:** When `--clean` is specified, runs scheduled `emerge --depclean`, `eclean-dist --deep`, `perl-cleaner --all`, and `emerge @golang-rebuild` tasks after a successful upgrade. The Perl and Go commands run only when their respective tasks are pending. With `--ask`, Portage prompts for depclean and Go rebuilds, and the script asks before running the other cleanup commands.
 - **Perl follow-up:** Reports a pending Perl task. If `perl-cleaner` is unavailable or fails, the task remains pending.
+- **Go rebuilds:** When `dev-lang/go` appears in the update plan, schedules `emerge @golang-rebuild` to rebuild packages affected by the Go update. With `--clean`, runs the pending rebuild after Perl cleanup. The task is cleared only after the command succeeds and remains pending if the command fails, is interrupted, or its confirmation is declined.
 - **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.cache/gentoo-upgrade.json`. Cleanup tasks remain pending when `--clean` is omitted.
 
 ## License

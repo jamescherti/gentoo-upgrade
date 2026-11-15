@@ -159,6 +159,25 @@ class GentooUpgrade:
             self._logger.info("[EMERGE] emerge @preserved-rebuild")
             self.emerge(["@preserved-rebuild"])
 
+            # Clear the pending Go task only after its rebuild succeeds.
+            #
+            # Go packages statically link their standard library and dependencies into
+            # the final executable binaries during compilation. Unlike C or C++
+            # libraries that dynamically link against shared objects (.so), upgrading
+            # dev-lang/go does not automatically update existing compiled Go binaries on
+            # your system.
+            #
+            # Running @golang-rebuild ensures that all installed packages built with Go
+            # are recompiled against the new toolchain version. This is especially
+            # important for security updates (such as fixing vulnerabilities statically
+            # baked into older Go binaries) and compatibility.
+            #
+            # https://security.gentoo.org/glsa/202209-26
+            if self._get_post_upgrade_task("dev-lang/go"):
+                self._logger.info("[EMERGE] emerge @golang-rebuild")
+                self.emerge(["@golang-rebuild"])
+                self._set_post_upgrade_task("dev-lang/go", enabled=False)
+
             if not clean:
                 return
 
@@ -189,13 +208,13 @@ class GentooUpgrade:
                     # Keep the task pending if distfile cleanup is skipped.
                     self._set_post_upgrade_task("emerge-depclean", enabled=False)
 
+            # After upgrading dev-lang/perl, running perl-cleaner --all is necessary.
+            #
+            # Perl upgrades shift module paths and the internal application binary
+            # interface version. Packages providing Perl modules or linked against
+            # libperl need to be rebuilt to prevent runtime errors and broken
+            # dependencies.
             self.run_perl_cleaner()
-
-            # Clear the pending Go task only after its rebuild succeeds.
-            if self._get_post_upgrade_task("dev-lang/go"):
-                self._logger.info("[EMERGE] emerge @golang-rebuild")
-                self.emerge(["@golang-rebuild"])
-                self._set_post_upgrade_task("dev-lang/go", enabled=False)
         finally:
             self._save_cfg()
 
