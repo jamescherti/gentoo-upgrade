@@ -84,7 +84,7 @@ class GentooUpgrade:
             self.cfg_dict["ebuilds_needing_emerge"]
         )
 
-    def _save_cfg(self) -> None:
+    def save_cfg(self) -> None:
         self._logger.info("Saving the state to: %s", self.cfg_path)
         # JSON does not support sets, so serialize the ebuilds as a sorted list.
         data = {
@@ -130,7 +130,6 @@ class GentooUpgrade:
             self._logger.info("[EMERGE] emerge @preserved-rebuild")
             self.emerge(["@preserved-rebuild"])
             self._set_post_upgrade_task("preserved-rebuild", enabled=False)
-            self._save_cfg()
 
         if self._get_post_upgrade_task("revdep-rebuild") and self._confirm_cleanup(
             "revdep-rebuild -v"
@@ -138,40 +137,36 @@ class GentooUpgrade:
             self._logger.info("[REBUILD] revdep-rebuild -v")
             GentooUpgrade.run(["revdep-rebuild", "-v"])
             self._set_post_upgrade_task("revdep-rebuild", enabled=False)
-            self._save_cfg()
 
     def cleanup(self, *, clean: bool = False) -> None:
         """Run post-upgrade tasks and optionally clean packages and distfiles."""
-        try:
-            if not self._do_cleanup:
-                return
+        if not self._do_cleanup:
+            return
 
-            self._do_cleanup = False
+        self._do_cleanup = False
 
-            if not clean:
-                return
+        if not clean:
+            return
 
-            if self._get_post_upgrade_task("emerge-depclean"):
-                self._logger.info("[CLEAN] emerge --depclean")
-                self.emerge(["--depclean"])
+        if self._get_post_upgrade_task("emerge-depclean"):
+            self._logger.info("[CLEAN] emerge --depclean")
+            self.emerge(["--depclean"])
 
-                # The --deep option can be added to make eclean-dist remove source
-                # code archives that do not belong to an installed ebuild. This will
-                # remove many more archives while providing a modest safety net,
-                # since the archives of installed ebuilds remain available in case
-                # rebuilds are needed.
-                if self._confirm_cleanup("eclean-dist --deep"):
-                    self._logger.info("[CLEAN] eclean-dist --deep")
-                    cmd = ["eclean-dist"]
-                    if self._quiet:
-                        cmd += ["--quiet"]
-                    cmd += ["--deep"]
-                    self.run(cmd)
+            # The --deep option can be added to make eclean-dist remove source
+            # code archives that do not belong to an installed ebuild. This will
+            # remove many more archives while providing a modest safety net,
+            # since the archives of installed ebuilds remain available in case
+            # rebuilds are needed.
+            if self._confirm_cleanup("eclean-dist --deep"):
+                self._logger.info("[CLEAN] eclean-dist --deep")
+                cmd = ["eclean-dist"]
+                if self._quiet:
+                    cmd += ["--quiet"]
+                cmd += ["--deep"]
+                self.run(cmd)
 
-                    # Keep the task pending if distfile cleanup is skipped.
-                    self._set_post_upgrade_task("emerge-depclean", enabled=False)
-        finally:
-            self._save_cfg()
+                # Keep the task pending if distfile cleanup is skipped.
+                self._set_post_upgrade_task("emerge-depclean", enabled=False)
 
     @staticmethod
     def delete_dir_contents(directory_path: str | os.PathLike[str]) -> Iterator[Path]:
@@ -217,7 +212,6 @@ class GentooUpgrade:
 
         # Persist the rebuild before world merging can fail or be interrupted.
         self._set_post_upgrade_task("preserved-rebuild", enabled=True)
-        self._save_cfg()
 
         # Upgrade the system
         cmd = []
@@ -415,6 +409,7 @@ def main() -> None:
                 sys.exit(1)
 
             # Retry saved rebuilds before attempting another upgrade.
+            # TODO Should this rebuild_dependencies be removed?
             gentoo_upgrade.rebuild_dependencies()
             gentoo_upgrade.upgrade_system()
             gentoo_upgrade.cleanup(clean=args.clean)
@@ -430,6 +425,8 @@ def main() -> None:
                 print("Result:")
                 for item in gentoo_upgrade.cfg_dict["ebuilds_needing_emerge"]:
                     print(f"  - {item}")
+        finally:
+            gentoo_upgrade.save_cfg()
 
 
 if __name__ == "__main__":
