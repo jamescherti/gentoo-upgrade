@@ -26,7 +26,7 @@ This script automates the Gentoo `@world` upgrade lifecycle, handling execution 
 - psutil (`dev-python/psutil`) and PyYAML (`dev-python/pyyaml`)
 - emerge (`sys-apps/portage`), eselect (`app-admin/eselect`), revdep-rebuild, and eclean-dist (`app-portage/gentoolkit`)
 
-Install them using:
+Install the requirements using:
 ```sh
 emerge --ask dev-lang/python dev-python/psutil dev-python/pyyaml app-admin/eselect app-portage/gentoolkit
 ```
@@ -35,7 +35,7 @@ emerge --ask dev-lang/python dev-python/psutil dev-python/pyyaml app-admin/esele
 
 ### Manual installation
 
-From the directory containing `gentoo-upgrade`, run these commands as root: 
+Run these commands as root: 
 
 ```sh
 git clone https://github.com/jamescherti/gentoo-upgrade
