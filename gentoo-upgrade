@@ -123,6 +123,23 @@ class GentooUpgrade:
             self._logger.warning("No response available; skipping %s", description)
             return False
 
+    def rebuild_dependencies(self) -> None:
+        """Run pending library rebuilds and save each successful completion."""
+        # Saved tasks are independent of whether a new world update is needed.
+        if self._get_post_upgrade_task("preserved-rebuild"):
+            self._logger.info("[EMERGE] emerge @preserved-rebuild")
+            self.emerge(["@preserved-rebuild"])
+            self._set_post_upgrade_task("preserved-rebuild", enabled=False)
+            self._save_cfg()
+
+        if self._get_post_upgrade_task("revdep-rebuild") and self._confirm_cleanup(
+            "revdep-rebuild -v"
+        ):
+            self._logger.info("[REBUILD] revdep-rebuild -v")
+            GentooUpgrade.run(["revdep-rebuild", "-v"])
+            self._set_post_upgrade_task("revdep-rebuild", enabled=False)
+            self._save_cfg()
+
     def cleanup(self, *, clean: bool = False) -> None:
         """Run post-upgrade tasks and optionally clean packages and distfiles."""
         try:
@@ -198,6 +215,8 @@ class GentooUpgrade:
         self.emerge_ebuild_if_outdated("sys-apps/portage")
         self._find_post_upgrade_tasks()
 
+        # Persist the rebuild before world merging can fail or be interrupted.
+        self._set_post_upgrade_task("preserved-rebuild", enabled=True)
         self._save_cfg()
 
         # Upgrade the system
@@ -227,17 +246,7 @@ class GentooUpgrade:
         else:
             self.done_upgrade_system = True
 
-            # Rebuild packages that depend on preserved older shared libraries
-            self._logger.info("[EMERGE] emerge @preserved-rebuild")
-            self.emerge(["@preserved-rebuild"])
-
-            # Detect broken shared-library dependencies and rebuild affected packages
-            if self._get_post_upgrade_task("revdep-rebuild") and self._confirm_cleanup(
-                "revdep-rebuild -v"
-            ):
-                self._logger.info("[REBUILD] revdep-rebuild -v")
-                GentooUpgrade.run(["revdep-rebuild", "-v"])
-                self._set_post_upgrade_task("revdep-rebuild", enabled=False)
+            self.rebuild_dependencies()
 
     def _find_post_upgrade_tasks(self) -> None:
         if len(self.cfg_dict["ebuilds_needing_emerge"]):
@@ -405,6 +414,8 @@ def main() -> None:
                 )
                 sys.exit(1)
 
+            # Retry saved rebuilds before attempting another upgrade.
+            gentoo_upgrade.rebuild_dependencies()
             gentoo_upgrade.upgrade_system()
             gentoo_upgrade.cleanup(clean=args.clean)
         except (subprocess.CalledProcessError, RuntimeError) as err:
