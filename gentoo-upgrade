@@ -34,8 +34,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import psutil
-
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -131,9 +129,6 @@ class GentooUpgrade:
             # self._logger.info("No Perl cleanup task is pending.")
             return
 
-        if self.is_emerge_running():
-            raise RuntimeError("Cannot run perl-cleaner while emerge is running")
-
         executable = shutil.which("perl-cleaner", path=self.env.get("PATH"))
         if executable is None:
             raise RuntimeError("perl-cleaner was not found in PATH")
@@ -155,67 +150,45 @@ class GentooUpgrade:
 
     def cleanup(self, *, clean: bool = False) -> None:
         """Run post-upgrade tasks and optionally clean packages and distfiles."""
-        # pylint: disable=too-many-try-statements
         try:
             if not self._do_cleanup:
                 return
 
             self._do_cleanup = False
 
-            if self.is_emerge_running():
-                self._logger.info(
-                    "[IGNORED BECAUSE EMERGE IS RUNNING] emerge @preserved-rebuild"
-                )
-            else:
-                self._logger.info("[EMERGE] emerge @preserved-rebuild")
-                self.emerge(["@preserved-rebuild"])
+            self._logger.info("[EMERGE] emerge @preserved-rebuild")
+            self.emerge(["@preserved-rebuild"])
 
-            # Keep scheduled cleanup tasks pending unless explicitly requested.
             if not clean:
                 return
 
-            if self._get_post_upgrade_task("revdep-rebuild"):
-                if self.is_emerge_running():
-                    self._logger.info(
-                        "[IGNORED] revdep-rebuild cannot be "
-                        "executed because emerge is running."
-                    )
-                elif self._confirm_cleanup("revdep-rebuild -v"):
-                    self._logger.info("[CLEAN] revdep-rebuild -v")
-                    GentooUpgrade.run(["revdep-rebuild", "-v"])
-                    self._set_post_upgrade_task("revdep-rebuild", enabled=False)
+            if self._get_post_upgrade_task("revdep-rebuild") and self._confirm_cleanup(
+                "revdep-rebuild -v"
+            ):
+                self._logger.info("[CLEAN] revdep-rebuild -v")
+                GentooUpgrade.run(["revdep-rebuild", "-v"])
+                self._set_post_upgrade_task("revdep-rebuild", enabled=False)
 
             if self._get_post_upgrade_task("emerge-depclean"):
-                if self.is_emerge_running():
-                    self._logger.info(
-                        "[IGNORED] emerge packages will not be "
-                        "cleaned because emerge is running."
-                    )
-                else:
-                    self._logger.info("[CLEAN] emerge --depclean")
-                    self.emerge(["--depclean"])
+                self._logger.info("[CLEAN] emerge --depclean")
+                self.emerge(["--depclean"])
 
-                    # The --deep option can be added to make eclean-dist remove source
-                    # code archives that do not belong to an installed ebuild. This will
-                    # remove many more archives while providing a modest safety net,
-                    # since the archives of installed ebuilds remain available in case
-                    # rebuilds are needed.
-                    if self._confirm_cleanup("eclean-dist --deep"):
-                        self._logger.info(
-                            "[CLEAN] eclean-dist --deep  # "
-                            "(Remove source code archives that do not "
-                            "belong to an installed ebuild)"
-                        )
-                        cmd = ["eclean-dist"]
-                        if self._quiet:
-                            cmd += ["--quiet"]
-                        cmd += ["--deep"]
-                        self.run(cmd)
+                # The --deep option can be added to make eclean-dist remove source
+                # code archives that do not belong to an installed ebuild. This will
+                # remove many more archives while providing a modest safety net,
+                # since the archives of installed ebuilds remain available in case
+                # rebuilds are needed.
+                if self._confirm_cleanup("eclean-dist --deep"):
+                    self._logger.info("[CLEAN] eclean-dist --deep")
+                    cmd = ["eclean-dist"]
+                    if self._quiet:
+                        cmd += ["--quiet"]
+                    cmd += ["--deep"]
+                    self.run(cmd)
 
-                        # Keep the task pending if distfile cleanup is skipped.
-                        self._set_post_upgrade_task("emerge-depclean", enabled=False)
+                    # Keep the task pending if distfile cleanup is skipped.
+                    self._set_post_upgrade_task("emerge-depclean", enabled=False)
 
-            # Run Perl cleaner after depclean
             self.run_perl_cleaner()
         finally:
             self._save_cfg()
@@ -331,18 +304,6 @@ class GentooUpgrade:
             emerge_args += ["--oneshot", ebuild_name]
             self.emerge(emerge_args)
             self.cfg_dict["ebuilds_needing_emerge"].discard(ebuild_name)
-
-    @staticmethod
-    def is_emerge_running() -> bool:
-        """Return whether an emerge process is running."""
-        for pid in psutil.pids():
-            try:
-                process = psutil.Process(pid)
-                if process.name() == "emerge":
-                    return True
-            except psutil.Error:
-                pass
-        return False
 
     @staticmethod
     def run(
@@ -486,10 +447,6 @@ def main() -> None:
 
         gentoo_upgrade = GentooUpgrade(ask=args.ask, sync=args.sync, quiet=args.quiet)
         try:
-            if gentoo_upgrade.is_emerge_running():
-                print("Error: 'emerge' is already running.", file=sys.stderr)
-                sys.exit(1)
-
             if gentoo_upgrade.count_news_items() > 0:
                 print(
                     "Error: Eselect news items need reading. "

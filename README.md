@@ -15,14 +15,13 @@ Optional cleanup is disabled by default. When `--clean` is specified, the tool r
 
 - Gentoo Linux
 - Python 3.10 or later (`dev-lang/python`)
-- psutil (`dev-python/psutil`)
 - emerge (`sys-apps/portage`) and eselect (`app-admin/eselect`)
 - For `--clean`: revdep-rebuild, eclean-dist (`app-portage/gentoolkit`), and perl-cleaner (`app-admin/perl-cleaner`)
 
 Install the requirements using:
 
 ```sh
-emerge --ask dev-lang/python dev-python/psutil app-admin/eselect app-portage/gentoolkit app-admin/perl-cleaner
+emerge --ask dev-lang/python app-admin/eselect app-portage/gentoolkit app-admin/perl-cleaner
 ```
 
 ## Installation
