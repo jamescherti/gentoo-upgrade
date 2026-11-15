@@ -9,7 +9,7 @@ The *[gentoo-upgrade](https://github.com/jamescherti/gentoo-upgrade)* is a comma
 
 The `gentoo-upgrade` tool brings routine Gentoo maintenance into one repeatable command. If Portage needs an update, it upgrades `sys-apps/portage` before running `emerge --update --deep --with-bdeps=y --newuse --keep-going @world`. This checks the full dependency tree, includes build-time dependencies, and rebuilds packages affected by USE flag changes.
 
-After a successful upgrade, it runs `emerge @preserved-rebuild` to rebuild packages that still use older shared libraries. When scheduled, it also runs `revdep-rebuild -v` to repair broken library links. Scheduled cleanup removes unneeded packages with `emerge --depclean`, removes obsolete distfiles with `eclean-dist --deep`, and clears `/var/tmp/portage/`. It records pending work in `~/.gentoo_upgrade.yaml` so you can use the same command across runs without tracking each step manually.
+After a successful upgrade, it runs `emerge @preserved-rebuild` to rebuild packages that still use older shared libraries. When scheduled, it also runs `revdep-rebuild -v` to repair broken library links. Scheduled cleanup removes unneeded packages with `emerge --depclean`, removes obsolete distfiles with `eclean-dist --deep`, and clears `/var/tmp/portage/`. It records pending work in `~/.cache/gentoo-upgrade.yaml` so you can use the same command across runs without tracking each step manually.
 
 ## Requirements
 

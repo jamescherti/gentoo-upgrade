@@ -44,7 +44,7 @@ class GentooUpgrade:
 
     env = os.environ.copy()
     env["LC_ALL"] = "C"
-    cfg_path = Path("~/.gentoo_upgrade.yaml").expanduser()
+    cfg_path = Path("~/.cache/gentoo-upgrade.yaml").expanduser()
     encoding = "utf-8"
 
     def __init__(self, *, ask: bool, sync: bool, quiet: bool) -> None:
