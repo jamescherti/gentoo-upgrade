@@ -82,7 +82,7 @@ gentoo-upgrade --sync --ask --clean
 ### Step 2: Upgrade
 
 - **Repository synchronization:** Executes `emerge --sync` when invoked with `--sync`. Defaults to local repository metadata.
-- **Portage self-update:** Upgrades `sys-apps/portage` before processing the rest of `@world`.
+- **Portage self-update:** If Portage needs an update, it upgrades `sys-apps/portage` before upgrading all packages.
 - **Dependency resolution:** Updates `@world` and its dependencies. Resolves full dependency trees, processes build-time requirements, and recompiles packages impacted by USE flag modifications.
 
 ### Step 3: Library consistency
@@ -92,7 +92,7 @@ gentoo-upgrade --sync --ask --clean
 
 ### Step 4: Cleanup
 
-- **Cleanup routines:** When `--clean` is specified, runs scheduled `emerge --depclean` and `eclean-dist --deep` tasks after a successful upgrade. With `--ask`, Portage prompts for depclean, and the script asks before running distfile cleanup.
+- **Cleanup routines:** When `--clean` is specified, runs scheduled `emerge --depclean` and `eclean-dist --deep` tasks after a successful upgrade.
 - **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.cache/gentoo-upgrade.json`. Cleanup tasks remain pending when `--clean` is omitted.
 
 ## License
