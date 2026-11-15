@@ -9,19 +9,19 @@ The *[gentoo-upgrade](https://github.com/jamescherti/gentoo-upgrade)* is a comma
 
 It brings routine Gentoo maintenance into one repeatable command. If Portage needs an update, it upgrades `sys-apps/portage` before upgrading all packages. After a successful upgrade, it rebuilds packages that still use older shared libraries.
 
-Optional cleanup is disabled by default. When `--clean` is specified, the tool runs scheduled cleanup tasks: `revdep-rebuild -v`, `emerge --depclean`, `eclean-dist --deep`, `perl-cleaner --all`, and `emerge @golang-rebuild`. It records pending work in `~/.cache/gentoo-upgrade.json`, so scheduled cleanup can be performed on a later successful run with `--clean`.
+Optional cleanup is disabled by default. When `--clean` is specified, the tool runs scheduled cleanup tasks: `revdep-rebuild -v`, `emerge --depclean`, and `eclean-dist --deep`. It records pending work in `~/.cache/gentoo-upgrade.json`, so scheduled cleanup can be performed on a later successful run with `--clean`.
 
 ## Requirements
 
 - Gentoo Linux
 - Python 3.10 or later (`dev-lang/python`)
 - emerge (`sys-apps/portage`) and eselect (`app-admin/eselect`)
-- For `--clean`: revdep-rebuild, eclean-dist (`app-portage/gentoolkit`), and perl-cleaner (`app-admin/perl-cleaner`)
+- For `--clean`: revdep-rebuild and eclean-dist (`app-portage/gentoolkit`)
 
 Install the requirements using:
 
 ```sh
-emerge --ask dev-lang/python app-admin/eselect app-portage/gentoolkit app-admin/perl-cleaner
+emerge --ask dev-lang/python app-admin/eselect app-portage/gentoolkit
 ```
 
 ## Installation
@@ -59,7 +59,7 @@ To sync repositories and review Portage's proposed merges, run as root:
 gentoo-upgrade --sync --ask
 ```
 
-To also run scheduled cleanup tasks, including pending Go rebuilds, after a successful upgrade:
+To also run scheduled cleanup tasks after a successful upgrade:
 
 ```sh
 gentoo-upgrade --sync --ask --clean
@@ -68,7 +68,7 @@ gentoo-upgrade --sync --ask --clean
 |Option         |Behavior                                                                                                                       |
 |---------------|-------------------------------------------------------------------------------------------------------------------------------|
 |`--sync`       |Run `emerge --sync` before checking for updates. By default, use the current local repositories.                               |
-|`-a`, `--ask`  |Ask before upgrade and cleanup operations, including depclean and Go rebuilds. By default, the script requests no confirmation.|
+|`-a`, `--ask`  |Ask before upgrade and cleanup operations, including depclean. By default, the script requests no confirmation.|
 |`-c`, `--clean`|Run scheduled cleanup tasks after a successful upgrade. Disabled by default.                                                   |
 |`-q`, `--quiet`|Reduce Portage output and run `eclean-dist` quietly.                                                                           |
 |`-h`, `--help` |Show command-line help and exit.                                                                                               |
@@ -89,9 +89,7 @@ gentoo-upgrade --sync --ask --clean
 ### Step 3: Cleanup
 
 - **Library consistency:** Runs `emerge @preserved-rebuild` after a successful upgrade. When `--clean` is specified, it also runs `revdep-rebuild -v` if that task is scheduled.
-- **Cleanup routines:** When `--clean` is specified, runs scheduled `emerge --depclean`, `eclean-dist --deep`, `perl-cleaner --all`, and `emerge @golang-rebuild` tasks after a successful upgrade. The Perl and Go commands run only when their respective tasks are pending. With `--ask`, Portage prompts for depclean and Go rebuilds, and the script asks before running the other cleanup commands.
-- **Perl follow-up:** Reports a pending Perl task. If `perl-cleaner` is unavailable or fails, the task remains pending.
-- **Go rebuilds:** When `dev-lang/go` appears in the update plan, schedules `emerge @golang-rebuild` to rebuild packages affected by the Go update. With `--clean`, runs the pending rebuild after Perl cleanup. The task is cleared only after the command succeeds and remains pending if the command fails, is interrupted, or its confirmation is declined.
+- **Cleanup routines:** When `--clean` is specified, runs scheduled `emerge --depclean` and `eclean-dist --deep` tasks after a successful upgrade. With `--ask`, Portage prompts for depclean, and the script asks before running the other cleanup commands.
 - **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.cache/gentoo-upgrade.json`. Cleanup tasks remain pending when `--clean` is omitted.
 
 ## License
