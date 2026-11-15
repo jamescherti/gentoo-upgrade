@@ -78,12 +78,20 @@ gentoo-upgrade --sync --ask --clean
 
 ## How gentoo-upgrade handles updates, rebuilds, and cleanup
 
+### Step 1: Pre-flight checks
+
 - **Process check:** Detects running `emerge` instances before execution and prior to cleanup phases.
 - **News queue verification:** Checks for unread Gentoo news before sync or upgrade actions. Read pending items with `eselect news read`.
+
+### Step 2: Upgrade
+
 - **Repository synchronization:** Executes `emerge --sync` when invoked with `--sync`. Defaults to local repository metadata.
 - **Portage self-update:** Upgrades `sys-apps/portage` before processing the rest of `@world`.
 - **Dependency resolution:** Resolves full dependency trees, processes build-time requirements, and recompiles packages impacted by USE flag modifications. Uses `--keep-going` to continue past failed builds.
 - **Execution flags:** Supports `--ask` for interactive merge review and `--quiet` to reduce output from Portage and `eclean-dist`.
+
+### Step 3: Cleanup
+
 - **Library consistency:** Runs `emerge @preserved-rebuild` after a successful upgrade. When `--clean` is specified, it also runs `revdep-rebuild -v` if that task is scheduled.
 - **Cleanup routines:** When `--clean` is specified, runs scheduled `emerge --depclean` and `eclean-dist --deep` tasks after a successful upgrade. Dependency removal bypasses interactive prompts even if `--ask` was specified.
 - **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.cache/gentoo-upgrade.json`. Cleanup tasks remain pending when `--clean` is omitted.
