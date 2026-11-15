@@ -9,18 +9,18 @@ The *[gentoo-upgrade](https://github.com/jamescherti/gentoo-upgrade)* is a comma
 
 It brings routine Gentoo maintenance into one repeatable command. If Portage needs an update, it upgrades `sys-apps/portage` before running `emerge --update --deep --with-bdeps=y --newuse --keep-going @world`. This checks the full dependency tree, includes build-time dependencies, and rebuilds packages affected by USE flag changes.
 
-After a successful upgrade, it runs `emerge @preserved-rebuild` to rebuild packages that still use older shared libraries. When scheduled, it also runs `revdep-rebuild -v` to repair broken library links. Scheduled cleanup removes unneeded packages with `emerge --depclean`, removes obsolete distfiles with `eclean-dist --deep`, and clears `/var/tmp/portage/`. It records pending work in `~/.cache/gentoo-upgrade.yaml` so you can use the same command across runs without tracking each step manually.
+After a successful upgrade, it runs `emerge @preserved-rebuild` to rebuild packages that still use older shared libraries. When scheduled, it also runs `revdep-rebuild -v` to repair broken library links. Scheduled cleanup removes unneeded packages with `emerge --depclean`, and removes obsolete distfiles with `eclean-dist --deep`. It records pending work in `~/.cache/gentoo-upgrade.json` so you can use the same command across runs without tracking each step manually.
 
 ## Requirements
 
 - Gentoo Linux
 - Python 3.10 or later (`dev-lang/python`)
-- psutil (`dev-python/psutil`) and PyYAML (`dev-python/pyyaml`)
+- psutil (`dev-python/psutil`)
 - emerge (`sys-apps/portage`), eselect (`app-admin/eselect`), revdep-rebuild, and eclean-dist (`app-portage/gentoolkit`)
 
 Install the requirements using:
 ```sh
-emerge --ask dev-lang/python dev-python/psutil dev-python/pyyaml app-admin/eselect app-portage/gentoolkit
+emerge --ask dev-lang/python dev-python/psutil app-admin/eselect app-portage/gentoolkit
 ```
 
 ## Installation
@@ -58,8 +58,6 @@ To sync repositories and review Portage's proposed merges, run as root:
 gentoo-upgrade --sync --ask
 ```
 
-**Cleanup can remove packages and files.** When dependency cleanup is pending, the script runs `emerge --depclean` without passing `--ask`, even if you requested confirmation for the upgrade. It then runs `eclean-dist --deep` and deletes the contents of `/var/tmp/portage/`.
-
 |Option         |Behavior                                                                                        |
 |---------------|------------------------------------------------------------------------------------------------|
 |`--sync`       |Run `emerge --sync` before checking for updates. By default, use the current local repositories.|
@@ -77,7 +75,7 @@ gentoo-upgrade --sync --ask
 * **Execution flags:** Supports `--ask` for interactive merge review and `--quiet` to suppress verbose output from Portage and `eclean-dist`.
 * **Library consistency:** Runs `emerge @preserved-rebuild` and `revdep-rebuild -v` post-upgrade to handle ABI shifts and broken dynamic links.
 * **Cleanup routines:** Executes `emerge --depclean`, and `eclean-dist --deep`. Note: dependency removal bypasses interactive prompts even if `--ask` was specified.
-* **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.gentoo_upgrade.yaml`.
+* **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.cache/gentoo-upgrade.json`.
 
 ## License
 
