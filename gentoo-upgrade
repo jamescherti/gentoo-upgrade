@@ -116,6 +116,15 @@ class GentooUpgrade:
     def _set_post_upgrade_task(self, name: str, *, enabled: bool) -> None:
         self.cfg_dict["post_upgrade_tasks"][name] = enabled
 
+    def _confirm_cleanup(self, description: str) -> bool:
+        if not self._ask:
+            return True
+        try:
+            return input(f"Run {description}? [y/N] ").strip().lower() in {"y", "yes"}
+        except EOFError:
+            self._logger.warning("No response available; skipping %s", description)
+            return False
+
     def run_perl_cleaner(self) -> None:
         """Run the pending Perl cleanup after a successful upgrade."""
         if not self._get_post_upgrade_task("dev-lang/perl"):
@@ -128,6 +137,9 @@ class GentooUpgrade:
         executable = shutil.which("perl-cleaner", path=self.env.get("PATH"))
         if executable is None:
             raise RuntimeError("perl-cleaner was not found in PATH")
+
+        if not self._confirm_cleanup("perl-cleaner --all"):
+            return
 
         self._logger.info("[RUN] perl-cleaner --all")
         self.run([executable, "--all"])
@@ -168,7 +180,7 @@ class GentooUpgrade:
                         "[IGNORED] revdep-rebuild cannot be "
                         "executed because emerge is running."
                     )
-                else:
+                elif self._confirm_cleanup("revdep-rebuild -v"):
                     self._logger.info("[CLEAN] revdep-rebuild -v")
                     GentooUpgrade.run(["revdep-rebuild", "-v"])
                     self._set_post_upgrade_task("revdep-rebuild", enabled=False)
@@ -181,26 +193,27 @@ class GentooUpgrade:
                     )
                 else:
                     self._logger.info("[CLEAN] emerge --depclean")
-                    self.emerge(["--depclean"], ignore_ask=True)
+                    self.emerge(["--depclean"])
 
                     # The --deep option can be added to make eclean-dist remove source
                     # code archives that do not belong to an installed ebuild. This will
                     # remove many more archives while providing a modest safety net,
                     # since the archives of installed ebuilds remain available in case
                     # rebuilds are needed.
-                    self._logger.info(
-                        "[CLEAN] eclean-dist --deep  # "
-                        "(Remove source code archives that do not "
-                        "belong to an installed ebuild)"
-                    )
-                    cmd = ["eclean-dist"]
-                    if self._quiet:
-                        cmd += ["--quiet"]
-                    cmd += ["--deep"]
-                    self.run(cmd)
+                    if self._confirm_cleanup("eclean-dist --deep"):
+                        self._logger.info(
+                            "[CLEAN] eclean-dist --deep  # "
+                            "(Remove source code archives that do not "
+                            "belong to an installed ebuild)"
+                        )
+                        cmd = ["eclean-dist"]
+                        if self._quiet:
+                            cmd += ["--quiet"]
+                        cmd += ["--deep"]
+                        self.run(cmd)
 
-                    # Mark the task as done
-                    self._set_post_upgrade_task("emerge-depclean", enabled=False)
+                        # Keep the task pending if distfile cleanup is skipped.
+                        self._set_post_upgrade_task("emerge-depclean", enabled=False)
 
             # Run Perl cleaner after depclean
             self.run_perl_cleaner()
@@ -422,7 +435,7 @@ def parse_args() -> argparse.Namespace:
         default=False,
         action="store_true",
         required=False,
-        help="Ask whether to proceed with the upgrade or abort",
+        help="Ask before upgrade and cleanup operations",
     )
 
     parser.add_argument(

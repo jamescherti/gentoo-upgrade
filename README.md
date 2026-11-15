@@ -66,8 +66,6 @@ To also run scheduled cleanup tasks after a successful upgrade:
 gentoo-upgrade --sync --ask --clean
 ```
 
-**Note:** `--clean` runs scheduled `emerge --depclean` without a confirmation prompt, even when `--ask` is specified. It also runs `eclean-dist --deep`, which removes distfiles that do not belong to an installed ebuild.
-
 |Option         |Behavior                                                                                                                   |
 |---------------|---------------------------------------------------------------------------------------------------------------------------|
 |`--sync`       |Run `emerge --sync` before checking for updates. By default, use the current local repositories.                           |
