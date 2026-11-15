@@ -1,28 +1,34 @@
 # gentoo-upgrade
-![Build Status](https://github.com/jamescherti/gentoo-upgrade/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/github/license/jamescherti/gentoo-upgrade)
-[![PyPI Version](https://img.shields.io/pypi/v/gentoo-upgrade.svg)](https://pypi.org/project/gentoo-upgrade/)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)
 
 - Author: James Cherti <[https://www.jamescherti.com/](https://www.jamescherti.com/)>
 - License: GPL 3.0 or later
 
-The `gentoo-upgrade` is a helper script that updates a Gentoo Linux installation with Portage.
+The *[gentoo-upgrade](https://github.com/jamescherti/gentoo-upgrade)* is a helper script that updates a Gentoo Linux with `emerge`.
 
-It can sync repositories, update Portage itself before the rest of `@world`, and run rebuild and cleanup tasks after a successful upgrade.
+This script automates the Gentoo `@world` upgrade lifecycle, handling execution from pre-flight checks to post-run cleanup.
+
+* **Process locking:** Detects running `emerge` instances before execution and prior to cleanup phases.
+* **News queue verification:** Checks for unread Gentoo news via `eselect news read` before sync or upgrade actions.
+* **Repository synchronization:** Executes `emerge --sync` when invoked with `--sync`. Defaults to local repository metadata.
+* **Portage self-update:** Prioritizes `sys-apps/portage` upgrades before processing the rest of `@world`.
+* **Dependency resolution:** Resolves full dependency trees, processes build-time requirements, and recompiles packages impacted by USE flag modifications. Uses `--keep-going` to bypass failed builds.
+* **Execution flags:** Supports `--ask` for interactive merge review and `--quiet` to suppress verbose output from Portage and `eclean-dist`.
+* **Library consistency:** Runs `emerge @preserved-rebuild` and `revdep-rebuild -v` post-upgrade to handle ABI shifts and broken dynamic links.
+* **Cleanup routines:** Executes `emerge --depclean`, `eclean-dist --deep`, and clears `/var/tmp/portage/`. Note: dependency removal bypasses interactive prompts even if `--ask` was specified.
+* **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.gentoo_upgrade.yaml`.
 
 ## Requirements
 
 - Gentoo Linux
 - Python 3.10 or later (`dev-lang/python`)
 - psutil (`dev-python/psutil`) and PyYAML (`dev-python/pyyaml`)
-- emerge (`sys-apps/portage`)
-- eselect (`app-admin/eselect`)
-- revdep-rebuild and eclean-dist (`app-portage/gentoolkit`)
+- emerge (`sys-apps/portage`), eselect (`app-admin/eselect`), revdep-rebuild, and eclean-dist (`app-portage/gentoolkit`)
 
 Install them using:
 ```sh
-emerge --ask dev-python/psutil dev-python/pyyaml app-portage/gentoolkit
+emerge --ask dev-lang/python dev-python/psutil dev-python/pyyaml app-admin/eselect app-portage/gentoolkit
 ```
 
 ## Installation
@@ -32,7 +38,9 @@ emerge --ask dev-python/psutil dev-python/pyyaml app-portage/gentoolkit
 From the directory containing `gentoo-upgrade`, run these commands as root: 
 
 ```sh
-install -D -m 0755 gentoo_upgrade.py /usr/local/bin/gentoo-upgrade
+git clone https://github.com/jamescherti/gentoo-upgrade
+cd gentoo-upgrade
+install -D -m 0755 gentoo-upgrade /usr/local/bin/gentoo-upgrade
 ```
 
 To verify the installation without starting an upgrade, run:
@@ -60,21 +68,12 @@ gentoo-upgrade --sync --ask
 
 **Cleanup can remove packages and files.** When dependency cleanup is pending, the script runs `emerge --depclean` without passing `--ask`, even if you requested confirmation for the upgrade. It then runs `eclean-dist --deep` and deletes the contents of `/var/tmp/portage/`.
 
-| Option | Behavior |
-| --- | --- |
-| `--sync` | Run `emerge --sync` before checking for updates. By default, use the current local repositories. |
-| `-a`, `--ask` | Pass `--ask` to Portage for merges. By default, the script requests no confirmation. |
-| `-q`, `--quiet` | Reduce Portage output and run `eclean-dist` quietly. |
-| `-h`, `--help` | Show command-line help and exit. |
-
-## Upgrade sequence
-
-1. Before syncing or upgrading, check for a running `emerge` process and unread Gentoo news. Either condition stops the run. If news is pending, run `eselect news read` and start the upgrade again.
-2. Sync if requested, identify pending ebuilds, and update `sys-apps/portage` first if needed.
-3. Upgrade the world set with `emerge --update --deep --with-bdeps=y --newuse --keep-going @world`.
-4. After a successful world update, run `emerge @preserved-rebuild`. If scheduled, run `revdep-rebuild -v` and the dependency cleanup described above. The script checks for a running `emerge` before starting each cleanup stage.
-
-The script records the last sync time, pending ebuilds, and scheduled tasks in `~/.gentoo_upgrade.yaml` under the home directory used by the root process.
+|Option         |Behavior                                                                                        |
+|---------------|------------------------------------------------------------------------------------------------|
+|`--sync`       |Run `emerge --sync` before checking for updates. By default, use the current local repositories.|
+|`-a`, `--ask`  |Pass `--ask` to Portage for merges. By default, the script requests no confirmation.            |
+|`-q`, `--quiet`|Reduce Portage output and run `eclean-dist` quietly.                                            |
+|`-h`, `--help` |Show command-line help and exit.                                                                |
 
 ## License
 
