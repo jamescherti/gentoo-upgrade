@@ -27,6 +27,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
@@ -71,7 +72,9 @@ class GentooUpgrade:
         try:
             with self.cfg_path.open(encoding=self.encoding) as fhandler:
                 data = yaml.safe_load(fhandler) or {}
-        except OSError:
+        # Only a missing state file represents a fresh installation; other
+        # read errors must not silently discard pending tasks.
+        except FileNotFoundError:
             return
 
         self.cfg_dict.update(data)
@@ -93,11 +96,26 @@ class GentooUpgrade:
                 super().increase_indent(flow=flow, indentless=False)
 
         self._logger.info("Saving the state to: %s", self.cfg_path)
-        with self.cfg_path.open("w", encoding=self.encoding) as fhandler:
-            file_content = yaml.dump(
-                self.cfg_dict, Dumper=YamlDumper, default_flow_style=False, indent=2
-            )
-            fhandler.write(file_content)
+        # Create the cache on first use and replace the state only after the
+        # complete new document has been written successfully.
+        self.cfg_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding=self.encoding, dir=self.cfg_path.parent, delete=False
+            ) as fhandler:
+                temp_path = Path(fhandler.name)
+                yaml.dump(
+                    self.cfg_dict,
+                    fhandler,
+                    Dumper=YamlDumper,
+                    default_flow_style=False,
+                    indent=2,
+                )
+            temp_path.replace(self.cfg_path)
+        finally:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
 
     def _get_post_upgrade_task(self, name: str) -> bool:
         return bool(self.cfg_dict["post_upgrade_tasks"].get(name, False))
@@ -183,7 +201,8 @@ class GentooUpgrade:
             raise OSError(f"{dir_path} is not a directory")
 
         for item in dir_path.iterdir():
-            if item.is_dir():
+            # A symlink to a directory must be unlinked, not passed to rmtree.
+            if item.is_dir() and not item.is_symlink():
                 shutil.rmtree(item)
                 yield item
             else:
@@ -312,18 +331,13 @@ class GentooUpgrade:
         cmd: list[str],
         **kwargs: Any,  # noqa: ANN401
     ) -> tuple[str, str]:
-        """Capture and decode command output, including on failure."""
-        try:
-            result = GentooUpgrade.run(cmd, capture_output=True, **kwargs)
-            stdout = result.stdout
-            stderr = result.stderr
-        except subprocess.CalledProcessError as err:
-            stdout = err.stdout
-            stderr = err.stderr
+        """Capture and decode command output, propagating command failures."""
+        # A failed pretend run cannot provide a reliable list of updates.
+        result = GentooUpgrade.run(cmd, capture_output=True, **kwargs)
 
         return (
-            stdout.decode(GentooUpgrade.encoding),
-            stderr.decode(GentooUpgrade.encoding),
+            result.stdout.decode(GentooUpgrade.encoding),
+            result.stderr.decode(GentooUpgrade.encoding),
         )
 
     def emerge(
