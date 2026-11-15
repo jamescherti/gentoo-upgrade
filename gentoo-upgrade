@@ -118,8 +118,8 @@ class GentooUpgrade:
     def _set_post_upgrade_task(self, name: str, *, enabled: bool) -> None:
         self.cfg_dict["post_upgrade_tasks"][name] = enabled
 
-    def cleanup(self) -> None:
-        """Run pending cleanup tasks and save the upgrade state."""
+    def cleanup(self, *, clean: bool = False) -> None:
+        """Run post-upgrade tasks and optionally clean packages and distfiles."""
         # pylint: disable=too-many-try-statements
         try:
             if not self._do_cleanup:
@@ -134,6 +134,10 @@ class GentooUpgrade:
             else:
                 self._logger.info("[EMERGE] emerge @preserved-rebuild")
                 self.emerge(["@preserved-rebuild"])
+
+            # Keep scheduled cleanup tasks pending unless explicitly requested.
+            if not clean:
+                return
 
             if self._get_post_upgrade_task("revdep-rebuild"):
                 if self.is_emerge_running():
@@ -209,7 +213,7 @@ class GentooUpgrade:
         self.cfg_dict["ebuilds_needing_emerge"] = set()
         self.emerge(emerge_sync_args)
 
-         self.cfg_dict["last_emerge_sync"] = datetime.now(tz=timezone.utc).isoformat()
+        self.cfg_dict["last_emerge_sync"] = datetime.now(tz=timezone.utc).isoformat()
 
     def upgrade_system(self) -> None:
         """Upgrade Portage and the world set."""
@@ -417,19 +421,17 @@ def parse_args() -> argparse.Namespace:
         help="Reduce the output from portage",
     )
 
-    # TODO: remove?
-    # parser.add_argument(
-    #     "-c",
-    #     "--clean",
-    #     default=False,
-    #     action="store_true",
-    #     required=False,
-    #     help=("Perform cleanup tasks after a successful upgrade using "
-    #           "'emerge --depclean' to remove packages not associated with "
-    #           "explicitely merged packages, and 'eclean-dist' to eliminate "
-    #           "source code archives that are not part of an installed "
-    #           "ebuild"),
-    # )
+    parser.add_argument(
+        "-c",
+        "--clean",
+        default=False,
+        action="store_true",
+        required=False,
+        help=(
+            "Run scheduled revdep-rebuild, emerge --depclean, and "
+            "eclean-dist --deep tasks after a successful upgrade"
+        ),
+    )
 
     return parser.parse_args()
 
@@ -469,7 +471,7 @@ def main() -> None:
             print(f"Error: {err}.", file=sys.stderr)
             sys.exit(1)
         else:
-            gentoo_upgrade.cleanup()
+            gentoo_upgrade.cleanup(clean=args.clean)
 
             if (
                 gentoo_upgrade.done_upgrade_system
