@@ -83,13 +83,16 @@ gentoo-upgrade --sync --ask --clean
 
 - **Repository synchronization:** Executes `emerge --sync` when invoked with `--sync`. Defaults to local repository metadata.
 - **Portage self-update:** Upgrades `sys-apps/portage` before processing the rest of `@world`.
-- **Dependency resolution:** Resolves full dependency trees, processes build-time requirements, and recompiles packages impacted by USE flag modifications. Uses `--keep-going` to continue past failed builds.
-- **Execution flags:** Supports `--ask` for interactive upgrade and cleanup review and `--quiet` to reduce output from Portage and `eclean-dist`.
+- **Dependency resolution:** Updates `@world` and its dependencies. Resolves full dependency trees, processes build-time requirements, and recompiles packages impacted by USE flag modifications.
 
-### Step 3: Cleanup
+### Step 3: Library consistency
 
-- **Library consistency:** Runs `emerge @preserved-rebuild` after a successful upgrade. When `--clean` is specified, it also runs `revdep-rebuild -v` if that task is scheduled.
-- **Cleanup routines:** When `--clean` is specified, runs scheduled `emerge --depclean` and `eclean-dist --deep` tasks after a successful upgrade. With `--ask`, Portage prompts for depclean, and the script asks before running the other cleanup commands.
+- Runs `emerge @preserved-rebuild` after a successful world update to rebuild packages that depend on preserved older shared libraries.
+- Runs scheduled `revdep-rebuild -v` to detect broken shared-library dependencies and rebuild affected packages.
+
+### Step 4: Cleanup
+
+- **Cleanup routines:** When `--clean` is specified, runs scheduled `emerge --depclean` and `eclean-dist --deep` tasks after a successful upgrade. With `--ask`, Portage prompts for depclean, and the script asks before running distfile cleanup.
 - **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.cache/gentoo-upgrade.json`. Cleanup tasks remain pending when `--clean` is omitted.
 
 ## License

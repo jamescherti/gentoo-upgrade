@@ -131,18 +131,8 @@ class GentooUpgrade:
 
             self._do_cleanup = False
 
-            self._logger.info("[EMERGE] emerge @preserved-rebuild")
-            self.emerge(["@preserved-rebuild"])
-
             if not clean:
                 return
-
-            if self._get_post_upgrade_task("revdep-rebuild") and self._confirm_cleanup(
-                "revdep-rebuild -v"
-            ):
-                self._logger.info("[CLEAN] revdep-rebuild -v")
-                GentooUpgrade.run(["revdep-rebuild", "-v"])
-                self._set_post_upgrade_task("revdep-rebuild", enabled=False)
 
             if self._get_post_upgrade_task("emerge-depclean"):
                 self._logger.info("[CLEAN] emerge --depclean")
@@ -236,6 +226,18 @@ class GentooUpgrade:
                 raise
         else:
             self.done_upgrade_system = True
+
+            # Rebuild packages that depend on preserved older shared libraries
+            self._logger.info("[EMERGE] emerge @preserved-rebuild")
+            self.emerge(["@preserved-rebuild"])
+
+            # Detect broken shared-library dependencies and rebuild affected packages
+            if self._get_post_upgrade_task("revdep-rebuild") and self._confirm_cleanup(
+                "revdep-rebuild -v"
+            ):
+                self._logger.info("[REBUILD] revdep-rebuild -v")
+                GentooUpgrade.run(["revdep-rebuild", "-v"])
+                self._set_post_upgrade_task("revdep-rebuild", enabled=False)
 
     def _find_post_upgrade_tasks(self) -> None:
         if len(self.cfg_dict["ebuilds_needing_emerge"]):
