@@ -1,0 +1,60 @@
+#
+# Copyright (c) 2021-2026 James Cherti
+# URL: https://github.com/jamescherti/gentoo-upgrade
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <https://www.gnu.org/licenses/>.
+#
+
+[project]
+name = "gentoo-upgrade"
+version = "0.9.9"
+description = "Upgrade Gentoo."
+readme = "README.md"
+requires-python = ">=3.10, <4"
+license = "GPL-3.0-or-later"
+authors = [
+  { name = "James Cherti" }
+]
+
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: POSIX :: Other",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "Intended Audience :: End Users/Desktop",
+  "Programming Language :: Python :: 3",
+  "Topic :: Utilities"
+]
+
+dependencies = []
+
+# [project.optional-dependencies]
+# test = [
+#     "types-PyYAML",
+#     "types-colorama",
+# ]
+
+[project.urls]
+Homepage = "https://github.com/jamescherti/gentoo-upgrade"
+
+[tool.setuptools]
+packages = []
+py-modules = []
+script-files = ["gentoo-upgrade"]
+
+[build-system]
+requires = ["setuptools>=77.0.0"]
+build-backend = "setuptools.build_meta"

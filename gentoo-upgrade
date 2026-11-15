@@ -1,0 +1,502 @@
+#!/usr/bin/env python3
+#
+# Copyright (c) 2021-2026 James Cherti
+# URL: https://github.com/jamescherti/gentoo-upgrade
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <https://www.gnu.org/licenses/>.
+#
+"""Upgrade Gentoo Linux."""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import os
+import re
+import shutil
+import subprocess
+import sys
+from contextlib import suppress
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+import psutil
+import yaml
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+
+class GentooUpgrade:
+    """Upgrade Gentoo Linux."""
+
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    cfg_path = Path("~/.gentoo_upgrade.yaml").expanduser()
+    encoding = "utf-8"
+
+    def __init__(self, *, ask: bool, sync: bool, quiet: bool) -> None:
+        """Load saved state and configure prompting, syncing, and output."""
+        self.done_upgrade_system = False
+
+        self._logger = logging.getLogger(self.__class__.__name__)
+        self._ask = ask
+        self._sync = sync
+        self._quiet = quiet
+        self._do_cleanup = False
+        self.cfg_dict: dict[str, Any] = {}
+        self._load_cfg()
+
+    def _load_cfg(self) -> None:
+        self._logger.info("Loading the state from: %s", self.cfg_path)
+
+        self.cfg_dict = {
+            "post_upgrade_tasks": {},
+            "ebuilds_needing_emerge": set(),
+            "last_emerge_sync": "",
+        }
+
+        try:
+            with self.cfg_path.open(encoding=self.encoding) as fhandler:
+                data = yaml.safe_load(fhandler) or {}
+        except OSError:
+            return
+
+        self.cfg_dict.update(data)
+        self.cfg_dict.setdefault("post_upgrade_tasks", {})
+        self.cfg_dict.setdefault("ebuilds_needing_emerge", set())
+        self.cfg_dict.setdefault("last_emerge_sync", "")
+
+        self.cfg_dict["ebuilds_needing_emerge"] = set(
+            self.cfg_dict["ebuilds_needing_emerge"]
+        )
+
+    def _save_cfg(self) -> None:
+        class YamlDumper(yaml.SafeDumper):
+            def increase_indent(
+                self,
+                flow: bool = False,  # noqa: FBT001, FBT002
+                indentless: bool = False,  # noqa: ARG002, FBT001, FBT002
+            ) -> None:
+                super().increase_indent(flow=flow, indentless=False)
+
+        self._logger.info("Saving the state to: %s", self.cfg_path)
+        with self.cfg_path.open("w", encoding=self.encoding) as fhandler:
+            file_content = yaml.dump(
+                self.cfg_dict, Dumper=YamlDumper, default_flow_style=False, indent=2
+            )
+            fhandler.write(file_content)
+
+    def _get_post_upgrade_task(self, name: str) -> bool:
+        return bool(self.cfg_dict["post_upgrade_tasks"].get(name, False))
+
+    def _set_post_upgrade_task(self, name: str, *, enabled: bool) -> None:
+        self.cfg_dict["post_upgrade_tasks"][name] = enabled
+
+    def cleanup(self) -> None:
+        """Run pending cleanup tasks and save the upgrade state."""
+        # pylint: disable=too-many-try-statements
+        try:
+            if not self._do_cleanup:
+                return
+
+            self._do_cleanup = False
+
+            if self.is_emerge_running():
+                self._logger.info(
+                    "[IGNORED BECAUSE EMERGE IS RUNNING] emerge @preserved-rebuild"
+                )
+            else:
+                self._logger.info("[EMERGE] emerge @preserved-rebuild")
+                self.emerge(["@preserved-rebuild"])
+
+            if self._get_post_upgrade_task("revdep-rebuild"):
+                if self.is_emerge_running():
+                    self._logger.info(
+                        "[IGNORED] revdep-rebuild cannot be "
+                        "executed because emerge is running."
+                    )
+                else:
+                    self._logger.info("[CLEAN] revdep-rebuild -v")
+                    GentooUpgrade.run(["revdep-rebuild", "-v"])
+                    self._set_post_upgrade_task("revdep-rebuild", enabled=False)
+
+            if self._get_post_upgrade_task("emerge-depclean"):
+                if self.is_emerge_running():
+                    self._logger.info(
+                        "[IGNORED] emerge packages will not be "
+                        "cleaned because emerge is running."
+                    )
+                else:
+                    self._logger.info("[CLEAN] emerge --depclean")
+                    self.emerge(["--depclean"], ignore_ask=True)
+
+                    # The --deep option can be added to make eclean-dist remove
+                    # source code archives that do not belong to an installed
+                    # ebuild. This will remove many more archives while
+                    # providing a modest safety net, since the archives of
+                    # installed ebuilds remain available in case rebuilds are
+                    # needed.
+                    self._logger.info(
+                        "[CLEAN] eclean-dist --deep  # "
+                        "(Remove source code archives that do not "
+                        "belong to an installed ebuild)"
+                    )
+                    cmd = ["eclean-dist"]
+                    if self._quiet:
+                        cmd += ["--quiet"]
+                    cmd += ["--deep"]
+                    self.run(cmd)
+
+                    portage_dir = Path("/var/tmp/portage")  # noqa: S108
+                    for item in self.delete_dir_contents(portage_dir):
+                        if item.is_dir():
+                            print(f"[Delete] {item}/")
+                        else:
+                            print(f"[Delete] {item}")
+
+                    # Mark the task as done
+                    self._set_post_upgrade_task("emerge-depclean", enabled=False)
+        finally:
+            self._save_cfg()
+
+    @staticmethod
+    def delete_dir_contents(directory_path: str | os.PathLike[str]) -> Iterator[Path]:
+        """Delete the contents within the directory at directory_path.
+
+        directory_path, on the other hand, is preserved.
+        """
+        dir_path = Path(directory_path)
+        if not dir_path.is_dir():
+            raise OSError(f"{dir_path} is not a directory")
+
+        for item in dir_path.iterdir():
+            if item.is_dir():
+                shutil.rmtree(item)
+                yield item
+            else:
+                item.unlink()
+                yield item
+
+    def sync(self) -> None:
+        """Sync the Portage repositories and record the sync time."""
+        emerge_sync_args = ["--sync"]
+        if self._quiet:
+            emerge_sync_args += ["--quiet"]
+
+        # TODO: remove
+        # run_emerge_sync = False
+        # last_emerge_sync = None
+        # if "last_emerge_sync" in self.cfg_dict:
+        #     last_emerge_sync = self.cfg_dict["last_emerge_sync"]
+
+        # if not last_emerge_sync:
+        #     run_emerge_sync = True
+
+        # 'emerge --sync' will only be executed once a day
+        # elif datetime.now() >= (datetime.fromisoformat(last_emerge_sync) +
+        #                         timedelta(days=1)):
+        #     run_emerge_sync = True
+
+        # if not run_emerge_sync:
+        #     self._logger.info("[IGNORE] emerge %s",
+        #                       subprocess.list2cmdline(emerge_args))
+        #     return
+
+        self._logger.info("[RUN] emerge %s", subprocess.list2cmdline(emerge_sync_args))
+
+        # Clearing the set here is correct so the subsequent check recalculates
+        self.cfg_dict["ebuilds_needing_emerge"] = set()
+        self.emerge(emerge_sync_args)
+
+        self.cfg_dict["last_emerge_sync"] = datetime.now(tz=UTC).isoformat()
+
+    def upgrade_system(self) -> None:
+        """Upgrade Portage and the world set."""
+        if self._sync:
+            self.sync()
+
+        self._find_ebuilds_needing_emerge()
+        self.emerge_ebuild_if_outdated("sys-apps/portage")
+        self._find_post_upgrade_tasks()
+
+        self._save_cfg()
+
+        # Upgrade the system
+        cmd = []
+        if self._ask:
+            cmd += ["-a"]
+        cmd += [
+            "--update",
+            "--deep",
+            "--with-bdeps=y",
+            "--newuse",
+            "--keep-going",
+            "@world",
+        ]
+        self._logger.info(
+            "Upgrading the system (emerge %s)", subprocess.list2cmdline(cmd)
+        )
+        try:
+            self.emerge(cmd)
+            self._do_cleanup = True
+            self.cfg_dict["ebuilds_needing_emerge"] = set()
+        except subprocess.CalledProcessError as err:
+            if not (self._ask and err.returncode == 130):
+                # Exit code 130 = the user answered No to:
+                # "Would you like to merge these packages? [Yes/No]"
+                raise
+        else:
+            self.done_upgrade_system = True
+
+    def _find_post_upgrade_tasks(self) -> None:
+        if len(self.cfg_dict["ebuilds_needing_emerge"]):
+            self.cfg_dict["post_upgrade_tasks"]["emerge-depclean"] = True
+            self.cfg_dict["post_upgrade_tasks"]["revdep-rebuild"] = True
+
+        # After updating dev-lang/perl the installed Perl modules
+        # have to be re-installed. In most cases, this is done automatically
+        # by the package manager, but subsequent steps are still recommended
+        # to ensure system consistency.
+        #
+        # You should start with a depclean to remove any unused perl
+        # dependencies that may confuse portage in future. Regular depcleans
+        # are also encouraged as part of your regular update cycle, as that
+        # will keep perl upgrades working.
+        # Recommended: emerge --depclean -va
+        #
+        # You should then call perl-cleaner to clean up any old files and
+        # trigger any remaining rebuilds portage may have missed.
+        # Use: perl-cleaner --all
+        if "dev-lang/perl" in self.cfg_dict["ebuilds_needing_emerge"]:
+            self.cfg_dict["post_upgrade_tasks"]["dev-lang/perl"] = True
+
+        # After dev-lang/go is updated it is recommended to rebuild
+        # all packages compiled with previous versions of dev-lang/go
+        # due to the static linking nature of go.
+        # If this is not done, the packages compiled with the older
+        # version of the compiler will not be updated until they are
+        # updated individually, which could mean they will have
+        # vulnerabilities.
+        # Run 'emerge @golang-rebuild' to rebuild all 'go' packages
+        # See https://bugs.gentoo.org/752153 for more info
+        if "dev-lang/go" in self.cfg_dict["ebuilds_needing_emerge"]:
+            self.cfg_dict["post_upgrade_tasks"]["dev-lang/go"] = True
+
+    def emerge_ebuild_if_outdated(self, ebuild_name: str) -> None:
+        """Merge the named ebuild if it is pending an update."""
+        if ebuild_name in self.cfg_dict["ebuilds_needing_emerge"]:
+            self._logger.info("[MERGE EBUILD] %s", ebuild_name)
+            emerge_args = []
+            if self._quiet:
+                emerge_args += ["--quiet-build"]
+            emerge_args += ["--oneshot", ebuild_name]
+            self.emerge(emerge_args)
+            self.cfg_dict["ebuilds_needing_emerge"].discard(ebuild_name)
+
+    @staticmethod
+    def is_emerge_running() -> bool:
+        """Return whether an emerge process is running."""
+        for pid in psutil.pids():
+            try:
+                process = psutil.Process(pid)
+                if process.name() == "emerge":
+                    return True
+            except psutil.Error:
+                pass
+        return False
+
+    @staticmethod
+    def run(
+        cmd: list[str],
+        **kwargs: Any,  # noqa: ANN401
+    ) -> subprocess.CompletedProcess[Any]:
+        """Run a command with the upgrade environment and subprocess options."""
+        return subprocess.run(cmd, check=True, env=GentooUpgrade.env, **kwargs)
+
+    @staticmethod
+    def run_output(
+        cmd: list[str],
+        **kwargs: Any,  # noqa: ANN401
+    ) -> tuple[str, str]:
+        """Capture and decode command output, including on failure."""
+        try:
+            result = GentooUpgrade.run(cmd, capture_output=True, **kwargs)
+            stdout = result.stdout
+            stderr = result.stderr
+        except subprocess.CalledProcessError as err:
+            stdout = err.stdout
+            stderr = err.stderr
+
+        return (
+            stdout.decode(GentooUpgrade.encoding),
+            stderr.decode(GentooUpgrade.encoding),
+        )
+
+    def emerge(
+        self, emerge_args: list[str], *, ignore_ask: bool = False
+    ) -> subprocess.CompletedProcess[Any]:
+        """Run emerge with the configured prompt and output options."""
+        if not ignore_ask and self._ask:
+            emerge_args += ["--ask"]
+        if self._quiet:
+            emerge_args += ["--quiet"]
+        return GentooUpgrade.run(["emerge", *emerge_args])
+
+    @staticmethod
+    def emerge_output(
+        emerge_args: list[str],
+        **kwargs: Any,  # noqa: ANN401
+    ) -> tuple[str, str]:
+        """Run emerge and return its decoded output streams."""
+        return GentooUpgrade.run_output(["emerge", *emerge_args], **kwargs)
+
+    def count_news_items(self) -> int:
+        """Return the number of unread Gentoo news items."""
+        cmd = ["eselect", "news", "count"]
+        output_lines = subprocess.check_output(cmd).splitlines()
+        if not output_lines:
+            return 0
+
+        return int(output_lines[0])
+
+    def _find_ebuilds_needing_emerge(self) -> None:
+        log_msg = "Locating ebuilds that need emerging..."
+        if self.cfg_dict["ebuilds_needing_emerge"]:
+            self._logger.info("[IGNORED] %s", log_msg)
+            return
+
+        self._logger.info("%s", log_msg)
+        stdout, _ = GentooUpgrade.emerge_output(
+            [
+                "--quiet",
+                "--color=n",
+                "--update",
+                "--pretend",
+                "--deep",
+                "--with-bdeps=y",
+                "--newuse",
+                "@world",
+            ]
+        )
+
+        result = set()
+        for line in stdout.splitlines():
+            line = line.strip()
+            match = re.search(r"^\[ebuild([^\]]+)]\s+(.*)-[0-9]", line, re.IGNORECASE)
+            if match:
+                result.add(match.group(2))
+
+        self.cfg_dict["ebuilds_needing_emerge"] = result
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    usage = "%(prog)s [--option] [args]"
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0] if __doc__ else "", usage=usage
+    )
+    parser.add_argument(
+        "-a",
+        "--ask",
+        default=False,
+        action="store_true",
+        required=False,
+        help="Ask whether to proceed with the upgrade or abort",
+    )
+
+    parser.add_argument(
+        "--sync",
+        default=False,
+        action="store_true",
+        required=False,
+        help="Update repositories",
+    )
+
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        default=False,
+        action="store_true",
+        required=False,
+        help="Reduce the output from portage",
+    )
+
+    # TODO: remove?
+    # parser.add_argument(
+    #     "-c",
+    #     "--clean",
+    #     default=False,
+    #     action="store_true",
+    #     required=False,
+    #     help=("Perform cleanup tasks after a successful upgrade using "
+    #           "'emerge --depclean' to remove packages not associated with "
+    #           "explicitely merged packages, and 'eclean-dist' to eliminate "
+    #           "source code archives that are not part of an installed "
+    #           "ebuild"),
+    # )
+
+    return parser.parse_args()
+
+
+def main() -> None:
+    """Run the requested upgrade and cleanup tasks."""
+    with suppress(KeyboardInterrupt):
+        logging.basicConfig(
+            level=logging.INFO,
+            stream=sys.stdout,
+            format="%(asctime)s %(name)s: %(message)s",
+        )
+        args = parse_args()
+
+        if os.getuid() != 0:
+            print(
+                "Error: you cannot perform this operation unless you are root.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        gentoo_upgrade = GentooUpgrade(ask=args.ask, sync=args.sync, quiet=args.quiet)
+        try:
+            if gentoo_upgrade.is_emerge_running():
+                print("Error: 'emerge' is already running.", file=sys.stderr)
+                sys.exit(1)
+
+            if gentoo_upgrade.count_news_items() > 0:
+                print(
+                    "Error: Eselect news items need reading. Execute 'eselect news read'.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+            gentoo_upgrade.upgrade_system()
+        except subprocess.CalledProcessError as err:
+            print(f"Error: {err}.", file=sys.stderr)
+            sys.exit(1)
+        else:
+            gentoo_upgrade.cleanup()
+
+            if (
+                gentoo_upgrade.done_upgrade_system
+                and gentoo_upgrade.cfg_dict["ebuilds_needing_emerge"]
+            ):
+                print()
+                print("Result:")
+                for item in gentoo_upgrade.cfg_dict["ebuilds_needing_emerge"]:
+                    print(f"  - {item}")
+
+
+if __name__ == "__main__":
+        main()
