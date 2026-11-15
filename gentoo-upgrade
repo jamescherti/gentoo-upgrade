@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 from contextlib import suppress
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -209,7 +209,7 @@ class GentooUpgrade:
         self.cfg_dict["ebuilds_needing_emerge"] = set()
         self.emerge(emerge_sync_args)
 
-        self.cfg_dict["last_emerge_sync"] = datetime.now(tz=UTC).isoformat()
+         self.cfg_dict["last_emerge_sync"] = datetime.now(tz=timezone.utc).isoformat()
 
     def upgrade_system(self) -> None:
         """Upgrade Portage and the world set."""
