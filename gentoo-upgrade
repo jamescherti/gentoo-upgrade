@@ -196,25 +196,6 @@ class GentooUpgrade:
         if self._quiet:
             emerge_sync_args += ["--quiet"]
 
-        # TODO: remove
-        # run_emerge_sync = False
-        # last_emerge_sync = None
-        # if "last_emerge_sync" in self.cfg_dict:
-        #     last_emerge_sync = self.cfg_dict["last_emerge_sync"]
-
-        # if not last_emerge_sync:
-        #     run_emerge_sync = True
-
-        # 'emerge --sync' will only be executed once a day
-        # elif datetime.now() >= (datetime.fromisoformat(last_emerge_sync) +
-        #                         timedelta(days=1)):
-        #     run_emerge_sync = True
-
-        # if not run_emerge_sync:
-        #     self._logger.info("[IGNORE] emerge %s",
-        #                       subprocess.list2cmdline(emerge_args))
-        #     return
-
         self._logger.info("[RUN] emerge %s", subprocess.list2cmdline(emerge_sync_args))
 
         # Clearing the set here is correct so the subsequent check recalculates
@@ -499,4 +480,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-        main()
+    main()
