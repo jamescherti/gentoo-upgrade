@@ -9,7 +9,7 @@ The *[gentoo-upgrade](https://github.com/jamescherti/gentoo-upgrade)* is a comma
 
 It brings routine Gentoo maintenance into one repeatable command. If Portage needs an update, it upgrades `sys-apps/portage` before upgrading all packages. After a successful upgrade, it rebuilds packages that still use older shared libraries.
 
-Optional cleanup is disabled by default. When `--clean` is specified, the tool runs scheduled cleanup tasks: `revdep-rebuild -v`, `emerge --depclean`, and `eclean-dist --deep`. It records pending work in `~/.cache/gentoo-upgrade.json`, so scheduled cleanup can be performed on a later successful run with `--clean`.
+Optional cleanup is disabled by default. When `--clean` is specified, the tool runs scheduled cleanup tasks: `revdep-rebuild -v`, `emerge --depclean`, `eclean-dist --deep`, and `perl-cleaner --all`. It records pending work in `~/.cache/gentoo-upgrade.json`, so scheduled cleanup can be performed on a later successful run with `--clean`.
 
 ## Requirements
 
@@ -17,12 +17,12 @@ Optional cleanup is disabled by default. When `--clean` is specified, the tool r
 - Python 3.10 or later (`dev-lang/python`)
 - psutil (`dev-python/psutil`)
 - emerge (`sys-apps/portage`) and eselect (`app-admin/eselect`)
-- For `--clean`: revdep-rebuild and eclean-dist (`app-portage/gentoolkit`)
+- For `--clean`: revdep-rebuild, eclean-dist (`app-portage/gentoolkit`), and perl-cleaner (`app-admin/perl-cleaner`)
 
 Install the requirements using:
 
 ```sh
-emerge --ask dev-lang/python dev-python/psutil app-admin/eselect app-portage/gentoolkit
+emerge --ask dev-lang/python dev-python/psutil app-admin/eselect app-portage/gentoolkit app-admin/perl-cleaner
 ```
 
 ## Installation
@@ -93,7 +93,8 @@ gentoo-upgrade --sync --ask --clean
 ### Step 3: Cleanup
 
 - **Library consistency:** Runs `emerge @preserved-rebuild` after a successful upgrade. When `--clean` is specified, it also runs `revdep-rebuild -v` if that task is scheduled.
-- **Cleanup routines:** When `--clean` is specified, runs scheduled `emerge --depclean` and `eclean-dist --deep` tasks after a successful upgrade. Dependency removal bypasses interactive prompts even if `--ask` was specified.
+- **Cleanup routines:** When `--clean` is specified, runs scheduled `emerge --depclean`, `eclean-dist --deep`, and `perl-cleaner --all` tasks after a successful upgrade. The Perl command runs only when a Perl task is pending. Dependency removal bypasses interactive prompts even if `--ask` was specified.
+- **Perl follow-up:** Reports a pending Perl task. If `perl-cleaner` is unavailable or fails, the task remains pending.
 - **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.cache/gentoo-upgrade.json`. Cleanup tasks remain pending when `--clean` is omitted.
 
 ## License
