@@ -1,13 +1,13 @@
-# gentoo-upgrade
+# gentoo-upgrade - A command-line tool that updates Gentoo Linux
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)
 
 - Author: James Cherti <[https://www.jamescherti.com/](https://www.jamescherti.com/)>
 - License: GPL 3.0 or later
 
-The *[gentoo-upgrade](https://github.com/jamescherti/gentoo-upgrade)* is a command-line tool that updates a Gentoo Linux.
+The *[gentoo-upgrade](https://github.com/jamescherti/gentoo-upgrade)* is a command-line tool that updates Gentoo Linux.
 
-The `gentoo-upgrade` tool brings routine Gentoo maintenance into one repeatable command. If Portage needs an update, it upgrades `sys-apps/portage` before running `emerge --update --deep --with-bdeps=y --newuse --keep-going @world`. This checks the full dependency tree, includes build-time dependencies, and rebuilds packages affected by USE flag changes.
+It brings routine Gentoo maintenance into one repeatable command. If Portage needs an update, it upgrades `sys-apps/portage` before running `emerge --update --deep --with-bdeps=y --newuse --keep-going @world`. This checks the full dependency tree, includes build-time dependencies, and rebuilds packages affected by USE flag changes.
 
 After a successful upgrade, it runs `emerge @preserved-rebuild` to rebuild packages that still use older shared libraries. When scheduled, it also runs `revdep-rebuild -v` to repair broken library links. Scheduled cleanup removes unneeded packages with `emerge --depclean`, removes obsolete distfiles with `eclean-dist --deep`, and clears `/var/tmp/portage/`. It records pending work in `~/.cache/gentoo-upgrade.yaml` so you can use the same command across runs without tracking each step manually.
 
