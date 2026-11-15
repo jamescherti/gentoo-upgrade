@@ -1,23 +1,13 @@
 # gentoo-upgrade
-![License](https://img.shields.io/github/license/jamescherti/gentoo-upgrade)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)
 
 - Author: James Cherti <[https://www.jamescherti.com/](https://www.jamescherti.com/)>
 - License: GPL 3.0 or later
 
-The *[gentoo-upgrade](https://github.com/jamescherti/gentoo-upgrade)* is a helper script that updates a Gentoo Linux with `emerge`.
+The *[gentoo-upgrade](https://github.com/jamescherti/gentoo-upgrade)* is a command-line tool that updates a Gentoo Linux.
 
-This script automates the Gentoo `@world` upgrade lifecycle, handling execution from pre-flight checks to post-run cleanup.
-
-* **Process locking:** Detects running `emerge` instances before execution and prior to cleanup phases.
-* **News queue verification:** Checks for unread Gentoo news via `eselect news read` before sync or upgrade actions.
-* **Repository synchronization:** Executes `emerge --sync` when invoked with `--sync`. Defaults to local repository metadata.
-* **Portage self-update:** Prioritizes `sys-apps/portage` upgrades before processing the rest of `@world`.
-* **Dependency resolution:** Resolves full dependency trees, processes build-time requirements, and recompiles packages impacted by USE flag modifications. Uses `--keep-going` to bypass failed builds.
-* **Execution flags:** Supports `--ask` for interactive merge review and `--quiet` to suppress verbose output from Portage and `eclean-dist`.
-* **Library consistency:** Runs `emerge @preserved-rebuild` and `revdep-rebuild -v` post-upgrade to handle ABI shifts and broken dynamic links.
-* **Cleanup routines:** Executes `emerge --depclean`, `eclean-dist --deep`, and clears `/var/tmp/portage/`. Note: dependency removal bypasses interactive prompts even if `--ask` was specified.
-* **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.gentoo_upgrade.yaml`.
+The `gentoo-upgrade` tool brings routine Gentoo maintenance into one repeatable command. It updates Portage before the rest of `@world`, rebuilds packages affected by shared library changes, and records pending tasks across runs. After a successful upgrade, it performs any scheduled cleanup. This reduces manual work and helps you avoid missed rebuilds or maintenance steps performed out of order.
 
 ## Requirements
 
@@ -74,6 +64,18 @@ gentoo-upgrade --sync --ask
 |`-a`, `--ask`  |Pass `--ask` to Portage for merges. By default, the script requests no confirmation.            |
 |`-q`, `--quiet`|Reduce Portage output and run `eclean-dist` quietly.                                            |
 |`-h`, `--help` |Show command-line help and exit.                                                                |
+
+## How gentoo-upgrade handles updates, rebuilds, and cleanup
+
+* **Process locking:** Detects running `emerge` instances before execution and prior to cleanup phases.
+* **News queue verification:** Checks for unread Gentoo news via `eselect news read` before sync or upgrade actions.
+* **Repository synchronization:** Executes `emerge --sync` when invoked with `--sync`. Defaults to local repository metadata.
+* **Portage self-update:** Upgrades `sys-apps/portage` before processing the rest of `@world`.
+* **Dependency resolution:** Resolves full dependency trees, processes build-time requirements, and recompiles packages impacted by USE flag modifications. Uses `--keep-going` to bypass failed builds.
+* **Execution flags:** Supports `--ask` for interactive merge review and `--quiet` to suppress verbose output from Portage and `eclean-dist`.
+* **Library consistency:** Runs `emerge @preserved-rebuild` and `revdep-rebuild -v` post-upgrade to handle ABI shifts and broken dynamic links.
+* **Cleanup routines:** Executes `emerge --depclean`, `eclean-dist --deep`, and clears `/var/tmp/portage/`. Note: dependency removal bypasses interactive prompts even if `--ask` was specified.
+* **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.gentoo_upgrade.yaml`.
 
 ## License
 
