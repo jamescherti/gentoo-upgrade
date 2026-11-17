@@ -1,4 +1,4 @@
-# gentoo-upgrade - A command-line tool that updates Gentoo Linux
+# gentoo-upgrade - A command-line tool that updates Gentoo Linux and runs cleanup tasks
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)
 
@@ -9,7 +9,7 @@ The *[gentoo-upgrade](https://github.com/jamescherti/gentoo-upgrade)* is a comma
 
 It brings routine Gentoo maintenance into one repeatable command. If Portage needs an update, it upgrades `sys-apps/portage` before upgrading all packages. After a successful upgrade, it rebuilds packages that still use older shared libraries.
 
-Optional cleanup is disabled by default. When `--clean` is specified, the tool runs scheduled cleanup tasks: `revdep-rebuild -v`, `emerge --depclean`, and `eclean-dist --deep`. It records pending work in `~/.cache/gentoo-upgrade.json`, so scheduled cleanup can be performed on a later successful run with `--clean`.
+Optional cleanup is disabled by default. When `--clean` is specified, the tool runs cleanup tasks: `revdep-rebuild -v`, `emerge --depclean`, and `eclean-dist --deep`. It records pending work in `~/.cache/gentoo-upgrade.json`, so cleanup can be performed on a later successful run with `--clean`.
 
 ## Requirements
 
@@ -59,19 +59,19 @@ To sync repositories and review Portage's proposed merges, run as root:
 gentoo-upgrade --sync --ask
 ```
 
-To also run scheduled cleanup tasks after a successful upgrade:
+To also run cleanup tasks after a successful upgrade:
 
 ```sh
 gentoo-upgrade --sync --ask --clean
 ```
 
-|Option         |Behavior                                                                                                                       |
-|---------------|-------------------------------------------------------------------------------------------------------------------------------|
-|`--sync`       |Run `emerge --sync` before checking for updates. By default, use the current local repositories.                               |
+|Option         |Behavior                                                                                                       |
+|---------------|---------------------------------------------------------------------------------------------------------------|
+|`--sync`       |Run `emerge --sync` before checking for updates. By default, use the current local repositories.               |
 |`-a`, `--ask`  |Ask before upgrade and cleanup operations, including depclean. By default, the script requests no confirmation.|
-|`-c`, `--clean`|Run scheduled cleanup tasks after a successful upgrade. Disabled by default.                                                   |
-|`-q`, `--quiet`|Reduce Portage output and run `eclean-dist` quietly.                                                                           |
-|`-h`, `--help` |Show command-line help and exit.                                                                                               |
+|`-c`, `--clean`|Run cleanup tasks after a successful upgrade. Disabled by default.                                             |
+|`-q`, `--quiet`|Reduce Portage output and run `eclean-dist` quietly.                                                           |
+|`-h`, `--help` |Show command-line help and exit.                                                                               |
 
 ## How gentoo-upgrade handles updates, rebuilds, and cleanup
 
@@ -88,11 +88,11 @@ gentoo-upgrade --sync --ask --clean
 ### Step 3: Library consistency
 
 - Runs `emerge @preserved-rebuild` after a successful world update to rebuild packages that depend on preserved older shared libraries.
-- Runs scheduled `revdep-rebuild -v` to detect broken shared-library dependencies and rebuild affected packages.
+- Runs `revdep-rebuild -v` to detect broken shared-library dependencies and rebuild affected packages.
 
 ### Step 4: Cleanup
 
-- **Cleanup routines:** When `--clean` is specified, runs scheduled `emerge --depclean` and `eclean-dist --deep` tasks after a successful upgrade.
+- **Cleanup routines:** When `--clean` is specified, runs `emerge --depclean` and `eclean-dist --deep` tasks after a successful upgrade.
 - **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.cache/gentoo-upgrade.json`. Cleanup tasks remain pending when `--clean` is omitted.
 
 ## License
