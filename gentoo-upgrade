@@ -130,9 +130,7 @@ class GentooUpgrade:
             self.emerge(["@preserved-rebuild"])
             self._set_post_upgrade_task("preserved-rebuild", enabled=False)
 
-        if self._get_post_upgrade_task("revdep-rebuild") and self._confirm_cleanup(
-            "revdep-rebuild -v"
-        ):
+        if self._get_post_upgrade_task("revdep-rebuild"):
             self._logger.info("[REBUILD] revdep-rebuild -v")
             GentooUpgrade.run(["revdep-rebuild", "-v"])
             self._set_post_upgrade_task("revdep-rebuild", enabled=False)
