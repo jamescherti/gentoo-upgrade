@@ -24,12 +24,12 @@ import argparse
 import json
 import logging
 import os
+import pwd
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
-from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -200,8 +200,8 @@ class GentooUpgrade:
 
         self.cfg_dict["last_emerge_sync"] = datetime.now(tz=timezone.utc).isoformat()
 
-    def upgrade_system(self) -> None:
-        """Upgrade Portage and the world set."""
+    def upgrade_system(self) -> bool:
+        """Upgrade Portage and the world set, returning False if declined."""
         if self._sync:
             self.sync()
 
@@ -236,8 +236,10 @@ class GentooUpgrade:
                 # Exit code 130 = the user answered No to:
                 # "Would you like to merge these packages? [Yes/No]"
                 raise
-        else:
-            self.rebuild_dependencies()
+            return False
+
+        self.rebuild_dependencies()
+        return True
 
     def _find_post_upgrade_tasks(self) -> None:
         if len(self.cfg_dict["ebuilds_needing_emerge"]):
@@ -378,43 +380,79 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def run_hook(script: Path, *arguments: str) -> None:
+    """Execute the hook if it exists and is executable."""
+    try:
+        script.lstat()
+    except FileNotFoundError:
+        return
+
+    if not script.is_file() or not os.access(script, os.X_OK):
+        print(f"Warning: Hook is not executable: {script}", file=sys.stderr)
+        return
+
+    GentooUpgrade.run([str(script), *arguments])
+
+
 def main() -> None:
     """Run the requested upgrade and cleanup tasks."""
-    with suppress(KeyboardInterrupt):
-        logging.basicConfig(
-            level=logging.INFO,
-            stream=sys.stdout,
-            format="%(asctime)s %(name)s: %(message)s",
-        )
-        args = parse_args()
+    logging.basicConfig(
+        level=logging.INFO,
+        stream=sys.stdout,
+        format="%(asctime)s %(name)s: %(message)s",
+    )
+    args = parse_args()
 
-        if os.getuid() != 0:
+    if os.getuid() != 0:
+        print(
+            "Error: you cannot perform this operation unless you are root.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    home_dir = Path(pwd.getpwuid(os.geteuid()).pw_dir)
+    gentoo_upgrade = GentooUpgrade(ask=args.ask, sync=args.sync, quiet=args.quiet)
+    success = False
+    try:
+        run_hook(home_dir / ".gentoo-upgrade-pre-hook")
+        if gentoo_upgrade.count_news_items() > 0:
             print(
-                "Error: you cannot perform this operation unless you are root.",
+                "Error: Eselect news items need reading. Execute 'eselect news read'.",
                 file=sys.stderr,
             )
             sys.exit(1)
 
-        gentoo_upgrade = GentooUpgrade(ask=args.ask, sync=args.sync, quiet=args.quiet)
+        # Retry saved rebuilds before attempting another upgrade.
+        # TODO Should this rebuild_dependencies be removed?
+        gentoo_upgrade.rebuild_dependencies()
+        upgraded = gentoo_upgrade.upgrade_system()
+        gentoo_upgrade.cleanup(clean=args.clean)
+        success = upgraded
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except (OSError, subprocess.CalledProcessError, RuntimeError) as err:
+        print(f"Error: {err}.", file=sys.stderr)
+        sys.exit(1)
+    finally:
+        saved = False
         try:
-            if gentoo_upgrade.count_news_items() > 0:
-                print(
-                    "Error: Eselect news items need reading. "
-                    "Execute 'eselect news read'.",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-
-            # Retry saved rebuilds before attempting another upgrade.
-            # TODO Should this rebuild_dependencies be removed?
-            gentoo_upgrade.rebuild_dependencies()
-            gentoo_upgrade.upgrade_system()
-            gentoo_upgrade.cleanup(clean=args.clean)
-        except (subprocess.CalledProcessError, RuntimeError) as err:
-            print(f"Error: {err}.", file=sys.stderr)
-            sys.exit(1)
-        finally:
             gentoo_upgrade.save_cfg()
+            saved = True
+        finally:
+            pending_error = sys.exc_info()[0]
+            try:
+                run_hook(
+                    home_dir / ".gentoo-upgrade-post-hook",
+                    "success" if success and saved else "failure",
+                )
+            except (OSError, subprocess.CalledProcessError) as err:
+                if pending_error is None:
+                    raise
+
+                print(f"Warning: After hook failed: {err}", file=sys.stderr)
+
+    if not success:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

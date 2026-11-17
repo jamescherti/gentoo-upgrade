@@ -11,6 +11,8 @@ It brings routine Gentoo maintenance into one repeatable command. If Portage nee
 
 Optional cleanup is disabled by default. When `--clean` is specified, the tool runs cleanup tasks: `revdep-rebuild -v`, `emerge --depclean`, and `eclean-dist --deep`. It records pending work in `~/.cache/gentoo-upgrade.json`, so cleanup can be performed on a later successful run with `--clean`.
 
+The tool also supports optional before and after hooks, allowing custom scripts to execute before and after the upgrade process.
+
 ## Requirements
 
 - Gentoo Linux
@@ -73,10 +75,83 @@ gentoo-upgrade --sync --ask --clean
 |`-q`, `--quiet`|Reduce Portage output and run `eclean-dist` quietly.                                                           |
 |`-h`, `--help` |Show command-line help and exit.                                                                               |
 
+## Before and after hooks
+
+The tool supports two optional executable scripts that run before and after the upgrade process:
+
+|Hook                         |Description                                       |
+|-----------------------------|--------------------------------------------------|
+|`~/.gentoo-upgrade-pre-hook` |Runs before the upgrade and pre-flight checks.    |
+|`~/.gentoo-upgrade-post-hook`|Runs after the upgrade and state-saving operation.|
+
+The scripts are located in the home directory resolved by the process running `gentoo-upgrade`, normally `/root` when executed as root.
+
+If a hook does not exist, it is silently skipped. If it exists but is not executable, a warning is displayed and the hook is skipped.
+
+Hooks execute with the same privileges as `gentoo-upgrade`, typically root. Ensure that the scripts and their directories cannot be modified by untrusted users.
+
+### Before hook
+
+The before hook runs before the pre-flight checks, repository synchronization, upgrades, rebuilds, and cleanup tasks.
+
+Create `~/.gentoo-upgrade-pre-hook`:
+
+```sh
+#!/bin/sh
+
+echo "Starting Gentoo upgrade"
+```
+
+Make it executable:
+
+```sh
+chmod 700 ~/.gentoo-upgrade-pre-hook
+```
+
+If the before hook exits with a nonzero status, the upgrade is aborted. The after hook is still attempted.
+
+### After hook
+
+The after hook runs when the upgrade process finishes, including when an error occurs or the upgrade is interrupted by Ctrl+C.
+
+It receives one positional argument indicating the result:
+
+|Argument |Description                                                        |
+|---------|-------------------------------------------------------------------|
+|`success`|The upgrade, cleanup, and state-saving operations completed.       |
+|`failure`|The upgrade was declined, interrupted, or an operation failed.     |
+
+Create `~/.gentoo-upgrade-post-hook`:
+
+```sh
+#!/bin/sh
+
+status="$1"
+
+if [ "$status" = "success" ]; then
+    echo "Gentoo upgrade completed successfully"
+else
+    echo "Gentoo upgrade failed or was interrupted"
+fi
+```
+
+Make it executable:
+
+```sh
+chmod 700 ~/.gentoo-upgrade-post-hook
+```
+
+The after hook is attempted even if the before hook, upgrade, cleanup, or state-saving operation fails.
+
+If the after hook fails while another error is already being handled, its failure is reported without replacing the original error. Otherwise, an after hook failure causes the command to exit with an error.
+
+Hooks cannot be guaranteed to execute if the process is forcibly terminated, such as with `SIGKILL`, or terminated without Python being able to run its cleanup handlers.
+
 ## How gentoo-upgrade handles updates, rebuilds, and cleanup
 
-### Step 1: Pre-flight checks
+### Step 1: Before hook and pre-flight checks
 
+- **Before hook:** Executes `~/.gentoo-upgrade-pre-hook` if installed and executable.
 - **News queue verification:** Checks for unread Gentoo news before sync or upgrade actions. Read pending items with `eselect news read`.
 
 ### Step 2: Upgrade
@@ -94,6 +169,12 @@ gentoo-upgrade --sync --ask --clean
 
 - **Cleanup routines:** When `--clean` is specified, runs `emerge --depclean` and `eclean-dist --deep` tasks after a successful upgrade.
 - **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.cache/gentoo-upgrade.json`. Cleanup tasks remain pending when `--clean` is omitted.
+
+### Step 5: After hook
+
+- **After hook:** Executes `~/.gentoo-upgrade-post-hook` if installed and executable.
+- **Result reporting:** Passes `success` or `failure` as the first argument, indicating whether the upgrade and state-saving operations completed successfully.
+- **Failure handling:** Attempts the after hook even if an earlier operation fails.
 
 ## License
 
