@@ -83,6 +83,7 @@ class GentooUpgrade:
         )
 
     def save_cfg(self) -> None:
+        """Save the current configuration state to the file system."""
         self._logger.info("Saving the state to: %s", self.cfg_path)
         # JSON does not support sets, so serialize the ebuilds as a sorted list.
         data = {
