@@ -48,8 +48,6 @@ class GentooUpgrade:
 
     def __init__(self, *, ask: bool, sync: bool, quiet: bool) -> None:
         """Load saved state and configure prompting, syncing, and output."""
-        self.done_upgrade_system = False
-
         self._logger = logging.getLogger(self.__class__.__name__)
         self._ask = ask
         self._sync = sync
@@ -238,8 +236,6 @@ class GentooUpgrade:
                 # "Would you like to merge these packages? [Yes/No]"
                 raise
         else:
-            self.done_upgrade_system = True
-
             self.rebuild_dependencies()
 
     def _find_post_upgrade_tasks(self) -> None:
@@ -416,15 +412,6 @@ def main() -> None:
         except (subprocess.CalledProcessError, RuntimeError) as err:
             print(f"Error: {err}.", file=sys.stderr)
             sys.exit(1)
-        else:
-            if (
-                gentoo_upgrade.done_upgrade_system
-                and gentoo_upgrade.cfg_dict["ebuilds_needing_emerge"]
-            ):
-                print()
-                print("Result:")
-                for item in gentoo_upgrade.cfg_dict["ebuilds_needing_emerge"]:
-                    print(f"  - {item}")
         finally:
             gentoo_upgrade.save_cfg()
 
