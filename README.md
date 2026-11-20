@@ -167,14 +167,14 @@ chmod 700 ~/.gentoo-upgrade-post-hook
 
 ### Step 1: Before hook and pre-flight checks
 
-- **Before hook:** Executes `~/.gentoo-upgrade-pre-hook` if installed and executable.
-- **News queue verification:** Checks for unread Gentoo news before sync or upgrade actions. Read pending items with `eselect news read`.
+- Executes `~/.gentoo-upgrade-pre-hook` if installed and executable.
+- Checks for unread Gentoo news before sync or upgrade actions. Read pending items with `eselect news read`.
 
 ### Step 2: Upgrade
 
-- **Repository synchronization:** Executes `emerge --sync` when invoked with `--sync`. Defaults to local repository metadata.
-- **Portage self-update:** If Portage needs an update, it upgrades `sys-apps/portage` before upgrading all packages.
-- **Dependency resolution:** Updates `@world` and its dependencies. Resolves full dependency trees, processes build-time requirements, and recompiles packages impacted by USE flag modifications.
+- Executes `emerge --sync` when invoked with `--sync`. Defaults to local repository metadata.
+- If Portage needs an update, it upgrades `sys-apps/portage` before upgrading all packages.
+- Updates `@world` and its dependencies. Resolves full dependency trees, processes build-time requirements, and recompiles packages impacted by USE flag modifications.
 
 ### Step 3: Rebuilds
 
@@ -184,14 +184,14 @@ chmod 700 ~/.gentoo-upgrade-post-hook
 
 ### Step 4: Cleanup
 
-- **Cleanup routines:** When `--clean` is specified, runs `emerge --depclean` and `eclean-dist --deep` tasks after a successful upgrade.
-- **State persistence:** Stores sync timestamps, pending ebuild states, and task registry in `~/.cache/gentoo-upgrade.json`. Cleanup tasks remain pending when `--clean` is omitted.
+- When `--clean` is specified, runs `emerge --depclean` and `eclean-dist --deep` tasks after a successful upgrade.
+- Stores sync timestamps, pending ebuild states, and task registry in `~/.cache/gentoo-upgrade.json`. Cleanup tasks remain pending when `--clean` is omitted.
 
 ### Step 5: After hook
 
-- **After hook:** Executes `~/.gentoo-upgrade-post-hook` if installed and executable.
-- **Result reporting:** Passes `success` or `failure` as the first argument, indicating whether the upgrade and state-saving operations completed successfully.
-- **Failure handling:** Attempts the after hook even if an earlier operation fails.
+- Executes `~/.gentoo-upgrade-post-hook` if installed and executable.
+- Passes `success` or `failure` as the first argument, indicating whether the upgrade and state-saving operations completed successfully.
+- Attempts the after hook even if an earlier operation fails.
 
 ## License
 
