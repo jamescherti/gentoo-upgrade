@@ -121,7 +121,7 @@ It receives one positional argument indicating the result:
 |`success`|The upgrade, cleanup, and state-saving operations completed.       |
 |`failure`|The upgrade was declined, interrupted, or an operation failed.     |
 
-Here is an example of `~/.gentoo-upgrade-post-hook`:
+The following example shows how to run kernel cleanup and Flatpak maintenance from `~/.gentoo-upgrade-post-hook` after a successful upgrade:
 
 ```sh
 #!/usr/bin/env bash
