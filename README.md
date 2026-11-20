@@ -121,18 +121,40 @@ It receives one positional argument indicating the result:
 |`success`|The upgrade, cleanup, and state-saving operations completed.       |
 |`failure`|The upgrade was declined, interrupted, or an operation failed.     |
 
-Create `~/.gentoo-upgrade-post-hook`:
+Here is an example of `~/.gentoo-upgrade-post-hook`:
 
 ```sh
-#!/bin/sh
+#!/usr/bin/env bash
 
 status="$1"
+ERRNO=0
 
-if [ "$status" = "success" ]; then
-    echo "Gentoo upgrade completed successfully"
+if [[ "$status" = "success" ]]; then
+  echo "Gentoo upgrade completed successfully"
+
+  # eclean-kernel
+  echo "[RUN] eclean-kernel -n 2"
+  eclean-kernel -n 2 || ERRNO=1
+
+  # Flatpak
+  if type -P flatpak &>/dev/null; then
+    echo "[RUN] flatpak update --noninteractive"
+    if flatpak update --noninteractive; then
+      echo "[RUN] flatpak remove --unused --noninteractive"
+      flatpak remove --unused --noninteractive || ERRNO=1
+    else
+      ERRNO=1
+    fi
+  fi
 else
-    echo "Gentoo upgrade failed or was interrupted"
+  echo "Gentoo upgrade failed or was interrupted"
 fi
+
+if (( ERRNO != 0 )); then
+  echo "Failure." >&2
+fi
+
+exit "$ERRNO"
 ```
 
 Make it executable:
@@ -140,12 +162,6 @@ Make it executable:
 ```sh
 chmod 700 ~/.gentoo-upgrade-post-hook
 ```
-
-The after hook is attempted even if the before hook, upgrade, cleanup, or state-saving operation fails.
-
-If the after hook fails while another error is already being handled, its failure is reported without replacing the original error. Otherwise, an after hook failure causes the command to exit with an error.
-
-Hooks cannot be guaranteed to execute if the process is forcibly terminated, such as with `SIGKILL`, or terminated without Python being able to run its cleanup handlers.
 
 ## How gentoo-upgrade handles updates, rebuilds, and cleanup
 
