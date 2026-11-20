@@ -7,9 +7,9 @@
 
 The *[gentoo-upgrade](https://github.com/jamescherti/gentoo-upgrade)* is a command-line tool that updates Gentoo Linux.
 
-It brings routine Gentoo maintenance into one repeatable command. If Portage needs an update, it upgrades `sys-apps/portage` before upgrading all packages. After a successful upgrade, it rebuilds packages that still use older shared libraries.
+If Portage needs an update, `gentoo-upgrade` upgrades `sys-apps/portage` before updating `@world`. After a successful update, it runs pending rebuilds. When the update plan includes `dev-lang/go`, it also runs `emerge @golang-rebuild` to apply bug fixes and security fixes from the updated Go standard library (See [GLSA 202209-26](https://security.gentoo.org/glsa/202209-26)).
 
-Optional cleanup is disabled by default. When `--clean` is specified, the tool runs cleanup tasks: `revdep-rebuild -v`, `emerge --depclean`, and `eclean-dist --deep`. It records pending work in `~/.cache/gentoo-upgrade.json`, so cleanup can be performed on a later successful run with `--clean`.
+Optional cleanup is disabled by default. With `--clean`, the tool runs pending `emerge --depclean` and `eclean-dist --deep` tasks. It records pending work in `~/.cache/gentoo-upgrade.json`, so cleanup can run on a later successful upgrade with `--clean`.
 
 The tool also supports optional before and after hooks, allowing custom scripts to execute before and after the upgrade process.
 
@@ -18,7 +18,7 @@ The tool also supports optional before and after hooks, allowing custom scripts 
 - Gentoo Linux
 - Python 3.10 or later (`dev-lang/python`)
 - emerge (`sys-apps/portage`) and eselect (`app-admin/eselect`)
-- For `--clean`: revdep-rebuild and eclean-dist (`app-portage/gentoolkit`)
+- `app-portage/gentoolkit` for `revdep-rebuild` and `eclean-dist`.
 
 Install the requirements using:
 
@@ -160,10 +160,11 @@ Hooks cannot be guaranteed to execute if the process is forcibly terminated, suc
 - **Portage self-update:** If Portage needs an update, it upgrades `sys-apps/portage` before upgrading all packages.
 - **Dependency resolution:** Updates `@world` and its dependencies. Resolves full dependency trees, processes build-time requirements, and recompiles packages impacted by USE flag modifications.
 
-### Step 3: Library consistency
+### Step 3: Rebuilds
 
-- Runs `emerge @preserved-rebuild` after a successful world update to rebuild packages that depend on preserved older shared libraries.
-- Runs `revdep-rebuild -v` to detect broken shared-library dependencies and rebuild affected packages.
+- Runs `emerge @preserved-rebuild` after a successful world update to rebuild packages that depend on preserved shared libraries.
+- Runs `revdep-rebuild -v` when scheduled to detect broken shared-library dependencies and rebuild affected packages.
+- When the update plan includes `dev-lang/go`, `gentoo-upgrade` runs `emerge @golang-rebuild`. Go binaries typically include the standard library code they use. Updating `dev-lang/go` leaves that code in existing binaries, so affected packages need to be rebuilt to apply bug fixes and security fixes from the updated Go standard library.
 
 ### Step 4: Cleanup
 

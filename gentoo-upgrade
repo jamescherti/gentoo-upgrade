@@ -237,12 +237,22 @@ class GentooUpgrade:
             return False
 
         self.rebuild_dependencies()
+
+        if self._get_post_upgrade_task("dev-lang/go"):
+            self._logger.info("[EMERGE] emerge @golang-rebuild")
+            self.emerge(["@golang-rebuild"])
+            self._set_post_upgrade_task("dev-lang/go", enabled=False)
+
         return True
 
     def _find_post_upgrade_tasks(self) -> None:
-        if len(self.cfg_dict["ebuilds_needing_emerge"]):
+        pending_ebuilds = self.cfg_dict["ebuilds_needing_emerge"]
+        if pending_ebuilds:
             self.cfg_dict["post_upgrade_tasks"]["emerge-depclean"] = True
             self.cfg_dict["post_upgrade_tasks"]["revdep-rebuild"] = True
+
+        if "dev-lang/go" in pending_ebuilds:
+            self._set_post_upgrade_task("dev-lang/go", enabled=True)
 
     def emerge_ebuild_if_outdated(self, ebuild_name: str) -> None:
         """Merge the named ebuild if it is pending an update."""
