@@ -202,6 +202,11 @@ class GentooUpgrade:
         """Upgrade Portage and the world set, returning False if declined."""
         if self._sync:
             self.sync()
+            if self.count_news_items() > 0:
+                raise RuntimeError(
+                    "Read the new Gentoo news with 'eselect news read', "
+                    "then rerun gentoo-upgrade"
+                )
 
         self._find_ebuilds_needing_emerge()
         self.emerge_ebuild_if_outdated("sys-apps/portage")
@@ -448,17 +453,18 @@ def main() -> None:
             gentoo_upgrade.save_cfg()
             saved = True
         finally:
-            pending_error = sys.exc_info()[0]
             try:
                 run_hook(
                     home_dir / ".gentoo-upgrade-post-hook",
                     "success" if success and saved else "failure",
                 )
-            except (OSError, subprocess.CalledProcessError) as err:
-                if pending_error is None:
-                    raise
-
-                print(f"Warning: After hook failed: {err}", file=sys.stderr)
+            except subprocess.CalledProcessError as err:
+                print(f"Error: After hook failed: {err}", file=sys.stderr)
+                code = err.returncode
+                sys.exit(128 - code if code < 0 else code)
+            except OSError as err:
+                print(f"Error: After hook failed: {err}", file=sys.stderr)
+                sys.exit(1)
 
     if not success:
         sys.exit(1)
