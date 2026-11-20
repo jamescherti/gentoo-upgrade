@@ -179,7 +179,7 @@ chmod 700 ~/.gentoo-upgrade-post-hook
 ### Step 3: Rebuilds
 
 - Runs `emerge @preserved-rebuild` after a successful world update to rebuild packages that depend on preserved shared libraries.
-- Runs `revdep-rebuild -v` when scheduled to detect broken shared-library dependencies and rebuild affected packages.
+- Runs `revdep-rebuild -v` after a successful world update to detect broken shared-library dependencies and rebuild affected packages.
 - When the update plan includes `dev-lang/go`, `gentoo-upgrade` runs `emerge @golang-rebuild`. Go binaries typically include the standard library code they use. Updating `dev-lang/go` leaves that code in existing binaries, so affected packages need to be rebuilt to apply bug fixes and security fixes from the updated Go standard library.
 
 ### Step 4: Cleanup
@@ -190,8 +190,6 @@ chmod 700 ~/.gentoo-upgrade-post-hook
 ### Step 5: After hook
 
 - Executes `~/.gentoo-upgrade-post-hook` if installed and executable.
-- Passes `success` or `failure` as the first argument, indicating whether the upgrade and state-saving operations completed successfully.
-- Attempts the after hook even if an earlier operation fails.
 
 ## License
 
