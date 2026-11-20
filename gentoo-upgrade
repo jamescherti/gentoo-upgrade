@@ -430,10 +430,11 @@ def main() -> None:
             )
             sys.exit(1)
 
-        # Retry saved rebuilds before attempting another upgrade.
-        # TODO Should this rebuild_dependencies be removed?
-        gentoo_upgrade.rebuild_dependencies()
+        # Retry pending rebuilds before starting another world update. A partial upgrade
+        # can leave a build tool unable to load a shared library it needs, causing the
+        # next update to fail before post-upgrade rebuilds can run.
         upgraded = gentoo_upgrade.upgrade_system()
+
         gentoo_upgrade.cleanup(clean=args.clean)
         success = upgraded
     except KeyboardInterrupt:
