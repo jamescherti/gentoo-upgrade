@@ -129,7 +129,7 @@ The following example shows how to run kernel cleanup and Flatpak maintenance fr
 status="$1"
 ERRNO=0
 
-if [[ "$status" = "success" ]]; then
+if [[ $status = "success" ]]; then
   echo "Gentoo upgrade completed successfully"
 
   # eclean-kernel
